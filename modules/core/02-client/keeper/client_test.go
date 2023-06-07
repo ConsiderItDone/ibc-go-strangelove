@@ -37,6 +37,12 @@ func (suite *KeeperTestSuite) TestCreateClient() {
 			true,
 		},
 		{
+			"success: 14-avalanche client type supported",
+			solomachine.NewClientState(0, &solomachine.ConsensusState{PublicKey: suite.solomachine.ConsensusState().PublicKey, Diversifier: suite.solomachine.Diversifier, Timestamp: suite.solomachine.Time}),
+			&solomachine.ConsensusState{PublicKey: suite.solomachine.ConsensusState().PublicKey, Diversifier: suite.solomachine.Diversifier, Timestamp: suite.solomachine.Time},
+			true,
+		},
+		{
 			"failure: 09-localhost client type not supported",
 			localhost.NewClientState(clienttypes.GetSelfHeight(suite.ctx)),
 			nil,
