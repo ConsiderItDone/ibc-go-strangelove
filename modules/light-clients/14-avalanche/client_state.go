@@ -1,6 +1,7 @@
 package avalanche
 
 import (
+	"reflect"
 	"strings"
 	"time"
 
@@ -10,22 +11,23 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
 
 var _ exported.ClientState = (*ClientState)(nil)
 
-func (m *ClientState) ClientType() string {
+func (cs *ClientState) ClientType() string {
 	return exported.Avalanche
 }
 
-func (m *ClientState) GetLatestHeight() exported.Height {
-	return m.LatestHeight
+func (cs *ClientState) GetLatestHeight() exported.Height {
+	return cs.LatestHeight
 }
 
-func (m *ClientState) Validate() error {
-	if strings.TrimSpace(m.ChainId) == "" {
+func (cs *ClientState) Validate() error {
+	if strings.TrimSpace(cs.ChainId) == "" {
 		return errorsmod.Wrap(ErrInvalidChainID, "chain id cannot be empty string")
 	}
 
@@ -34,48 +36,48 @@ func (m *ClientState) Validate() error {
 	// between the tendermint version being run by the counterparty chain
 	// and the tendermint version used by this light client.
 	// https://github.com/cosmos/ibc-go/issues/177
-	if len(m.ChainId) > tmtypes.MaxChainIDLen {
-		return errorsmod.Wrapf(ErrInvalidChainID, "chainID is too long; got: %d, max: %d", len(m.ChainId), tmtypes.MaxChainIDLen)
+	if len(cs.ChainId) > tmtypes.MaxChainIDLen {
+		return errorsmod.Wrapf(ErrInvalidChainID, "chainID is too long; got: %d, max: %d", len(cs.ChainId), tmtypes.MaxChainIDLen)
 	}
 
-	if err := light.ValidateTrustLevel(m.TrustLevel.ToTendermint()); err != nil {
+	if err := light.ValidateTrustLevel(cs.TrustLevel.ToTendermint()); err != nil {
 		return err
 	}
-	if m.TrustingPeriod <= 0 {
+	if cs.TrustingPeriod <= 0 {
 		return errorsmod.Wrap(ErrInvalidTrustingPeriod, "trusting period must be greater than zero")
 	}
-	if m.UnbondingPeriod <= 0 {
+	if cs.UnbondingPeriod <= 0 {
 		return errorsmod.Wrap(ErrInvalidUnbondingPeriod, "unbonding period must be greater than zero")
 	}
-	if m.MaxClockDrift <= 0 {
+	if cs.MaxClockDrift <= 0 {
 		return errorsmod.Wrap(ErrInvalidMaxClockDrift, "max clock drift must be greater than zero")
 	}
 
 	// the latest height revision number must match the chain id revision number
-	if m.LatestHeight.RevisionNumber != clienttypes.ParseChainID(m.ChainId) {
+	if cs.LatestHeight.RevisionNumber != clienttypes.ParseChainID(cs.ChainId) {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight,
-			"latest height revision number must match chain id revision number (%d != %d)", m.LatestHeight.RevisionNumber, clienttypes.ParseChainID(m.ChainId))
+			"latest height revision number must match chain id revision number (%d != %d)", cs.LatestHeight.RevisionNumber, clienttypes.ParseChainID(cs.ChainId))
 	}
-	if m.LatestHeight.RevisionHeight == 0 {
+	if cs.LatestHeight.RevisionHeight == 0 {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "tendermint client's latest height revision height cannot be zero")
 	}
-	if m.TrustingPeriod >= m.UnbondingPeriod {
+	if cs.TrustingPeriod >= cs.UnbondingPeriod {
 		return errorsmod.Wrapf(
 			ErrInvalidTrustingPeriod,
-			"trusting period (%s) should be < unbonding period (%s)", m.TrustingPeriod, m.UnbondingPeriod,
+			"trusting period (%s) should be < unbonding period (%s)", cs.TrustingPeriod, cs.UnbondingPeriod,
 		)
 	}
 
-	if m.ProofSpecs == nil {
+	if cs.ProofSpecs == nil {
 		return errorsmod.Wrap(ErrInvalidProofSpecs, "proof specs cannot be nil for tm client")
 	}
-	for i, spec := range m.ProofSpecs {
+	for i, spec := range cs.ProofSpecs {
 		if spec == nil {
 			return errorsmod.Wrapf(ErrInvalidProofSpecs, "proof spec cannot be nil at index: %d", i)
 		}
 	}
 	// UpgradePath may be empty, but if it isn't, each key must be non-empty
-	for i, k := range m.UpgradePath {
+	for i, k := range cs.UpgradePath {
 		if strings.TrimSpace(k) == "" {
 			return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "key in upgrade path at index %d cannot be empty", i)
 		}
@@ -84,20 +86,20 @@ func (m *ClientState) Validate() error {
 	return nil
 }
 
-func (m *ClientState) Status(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec) exported.Status {
-	if !m.FrozenHeight.IsZero() {
+func (cs *ClientState) Status(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec) exported.Status {
+	if !cs.FrozenHeight.IsZero() {
 		return exported.Frozen
 	}
 
 	// get latest consensus state from clientStore to check for expiry
-	consState, found := GetConsensusState(clientStore, cdc, m.GetLatestHeight())
+	consState, found := GetConsensusState(clientStore, cdc, cs.GetLatestHeight())
 	if !found {
 		// if the client state does not have an associated consensus state for its latest height
 		// then it must be expired
 		return exported.Expired
 	}
 
-	if m.IsExpired(consState.Timestamp, ctx.BlockTime()) {
+	if cs.IsExpired(consState.Timestamp, ctx.BlockTime()) {
 		return exported.Expired
 	}
 
@@ -106,25 +108,24 @@ func (m *ClientState) Status(ctx sdk.Context, clientStore sdk.KVStore, cdc codec
 
 // IsExpired returns whether or not the client has passed the trusting period since the last
 // update (in which case no headers are considered valid).
-func (m *ClientState) IsExpired(latestTimestamp, now time.Time) bool {
-	expirationTime := latestTimestamp.Add(m.TrustingPeriod)
+func (cs *ClientState) IsExpired(latestTimestamp, now time.Time) bool {
+	expirationTime := latestTimestamp.Add(cs.TrustingPeriod)
 	return !expirationTime.After(now)
 }
 
-
-func (m *ClientState) ZeroCustomFields() exported.ClientState {
+func (cs *ClientState) ZeroCustomFields() exported.ClientState {
 	// copy over all chain-specified fields
 	// and leave custom fields empty
 	return &ClientState{
-		ChainId:         m.ChainId,
-		UnbondingPeriod: m.UnbondingPeriod,
-		LatestHeight:    m.LatestHeight,
-		ProofSpecs:      m.ProofSpecs,
-		UpgradePath:     m.UpgradePath,
+		ChainId:         cs.ChainId,
+		UnbondingPeriod: cs.UnbondingPeriod,
+		LatestHeight:    cs.LatestHeight,
+		ProofSpecs:      cs.ProofSpecs,
+		UpgradePath:     cs.UpgradePath,
 	}
 }
 
-func (m *ClientState) GetTimestampAtHeight(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height) (uint64, error) {
+func (cs *ClientState) GetTimestampAtHeight(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height) (uint64, error) {
 	// get consensus state at height from clientStore to check for expiry
 	consState, found := GetConsensusState(clientStore, cdc, height)
 	if !found {
@@ -133,56 +134,168 @@ func (m *ClientState) GetTimestampAtHeight(ctx sdk.Context, clientStore sdk.KVSt
 	return consState.GetTimestamp(), nil
 }
 
-func (m *ClientState) Initialize(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, consState exported.ConsensusState) error {
+func (cs *ClientState) Initialize(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, consState exported.ConsensusState) error {
 	consensusState, ok := consState.(*ConsensusState)
 	if !ok {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidConsensus, "invalid initial consensus state. expected type: %T, got: %T",
 			&ConsensusState{}, consState)
 	}
 
-	setClientState(clientStore, cdc, m)
-	setConsensusState(clientStore, cdc, consensusState, m.GetLatestHeight())
-	setConsensusMetadata(ctx, clientStore, m.GetLatestHeight())
+	setClientState(clientStore, cdc, cs)
+	setConsensusState(clientStore, cdc, consensusState, cs.GetLatestHeight())
+	setConsensusMetadata(ctx, clientStore, cs.GetLatestHeight())
 
 	return nil
 }
 
-func (m *ClientState) VerifyMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path, value []byte) error {
+func (cs *ClientState) VerifyMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path, value []byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *ClientState) VerifyNonMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path) error {
+// verifyDelayPeriodPassed will ensure that at least delayTimePeriod amount of time and delayBlockPeriod number of blocks have passed
+// since consensus state was submitted before allowing verification to continue.
+func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exported.Height, delayTimePeriod, delayBlockPeriod uint64) error {
+	if delayTimePeriod != 0 {
+		// check that executing chain's timestamp has passed consensusState's processed time + delay time period
+		processedTime, ok := GetProcessedTime(store, proofHeight)
+		if !ok {
+			return errorsmod.Wrapf(ErrProcessedTimeNotFound, "processed time not found for height: %s", proofHeight)
+		}
+
+		currentTimestamp := uint64(ctx.BlockTime().UnixNano())
+		validTime := processedTime + delayTimePeriod
+
+		// NOTE: delay time period is inclusive, so if currentTimestamp is validTime, then we return no error
+		if currentTimestamp < validTime {
+			return errorsmod.Wrapf(ErrDelayPeriodNotPassed, "cannot verify packet until time: %d, current time: %d",
+				validTime, currentTimestamp)
+		}
+
+	}
+
+	if delayBlockPeriod != 0 {
+		// check that executing chain's height has passed consensusState's processed height + delay block period
+		processedHeight, ok := GetProcessedHeight(store, proofHeight)
+		if !ok {
+			return errorsmod.Wrapf(ErrProcessedHeightNotFound, "processed height not found for height: %s", proofHeight)
+		}
+
+		currentHeight := clienttypes.GetSelfHeight(ctx)
+		validHeight := clienttypes.NewHeight(processedHeight.GetRevisionNumber(), processedHeight.GetRevisionHeight()+delayBlockPeriod)
+
+		// NOTE: delay block period is inclusive, so if currentHeight is validHeight, then we return no error
+		if currentHeight.LT(validHeight) {
+			return errorsmod.Wrapf(ErrDelayPeriodNotPassed, "cannot verify packet until height: %s, current height: %s",
+				validHeight, currentHeight)
+		}
+	}
+
+	return nil
+}
+func (cs *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, msg exported.ClientMessage) bool {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *ClientState) VerifyClientMessage(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) error {
+func (cs *ClientState) VerifyNonMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) bool {
+func (cs *ClientState) VerifyClientMessage(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) {
+// FrozenHeight is same for all misbehaviour
+var FrozenHeight = clienttypes.NewHeight(0, 1)
+
+func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) {
+	cs.FrozenHeight = FrozenHeight
+
+	clientStore.Set(host.ClientStateKey(), clienttypes.MustMarshalClientState(cdc, cs))
+}
+
+func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) []exported.Height {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) []exported.Height {
-	//TODO implement me
-	panic("implement me")
+func (cs *ClientState) CheckSubstituteAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, subjectClientStore, substituteClientStore sdk.KVStore, substituteClient exported.ClientState) error {
+	substituteClientState, ok := substituteClient.(*ClientState)
+	if !ok {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "expected type %T, got %T", &ClientState{}, substituteClient)
+	}
+
+	if !IsMatchingClientState(*cs, *substituteClientState) {
+		return errorsmod.Wrap(clienttypes.ErrInvalidSubstitute, "subject client state does not match substitute client state")
+	}
+
+	if cs.Status(ctx, subjectClientStore, cdc) == exported.Frozen {
+		// unfreeze the client
+		cs.FrozenHeight = clienttypes.ZeroHeight()
+	}
+
+	// copy consensus states and processed time from substitute to subject
+	// starting from initial height and ending on the latest height (inclusive)
+	height := substituteClientState.GetLatestHeight()
+
+	consensusState, found := GetConsensusState(substituteClientStore, cdc, height)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "unable to retrieve latest consensus state for substitute client")
+	}
+
+	setConsensusState(subjectClientStore, cdc, consensusState, height)
+
+	// set metadata stored for the substitute consensus state
+	processedHeight, found := GetProcessedHeight(substituteClientStore, height)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrUpdateClientFailed, "unable to retrieve processed height for substitute client latest height")
+	}
+
+	processedTime, found := GetProcessedTime(substituteClientStore, height)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrUpdateClientFailed, "unable to retrieve processed time for substitute client latest height")
+	}
+
+	setConsensusMetadataWithValues(subjectClientStore, height, processedHeight, processedTime)
+
+	cs.LatestHeight = substituteClientState.LatestHeight
+	cs.ChainId = substituteClientState.ChainId
+
+	// set new trusting period based on the substitute client state
+	cs.TrustingPeriod = substituteClientState.TrustingPeriod
+
+	// no validation is necessary since the substitute is verified to be Active
+	// in 02-client.
+	setClientState(subjectClientStore, cdc, cs)
+
+	return nil
 }
 
-func (m *ClientState) CheckSubstituteAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, subjectClientStore, substituteClientStore sdk.KVStore, substituteClient exported.ClientState) error {
-	//TODO implement me
-	panic("implement me")
+// IsMatchingClientState returns true if all the client state parameters match
+// except for frozen height, latest height, trusting period, chain-id.
+func IsMatchingClientState(subject, substitute ClientState) bool {
+	// zero out parameters which do not need to match
+	subject.LatestHeight = clienttypes.ZeroHeight()
+	subject.FrozenHeight = clienttypes.ZeroHeight()
+	subject.TrustingPeriod = time.Duration(0)
+	substitute.LatestHeight = clienttypes.ZeroHeight()
+	substitute.FrozenHeight = clienttypes.ZeroHeight()
+	substitute.TrustingPeriod = time.Duration(0)
+	subject.ChainId = ""
+	substitute.ChainId = ""
+	// sets both sets of flags to true as these flags have been DEPRECATED, see ADR-026 for more information
+	subject.AllowUpdateAfterExpiry = true
+	substitute.AllowUpdateAfterExpiry = true
+	subject.AllowUpdateAfterMisbehaviour = true
+	substitute.AllowUpdateAfterMisbehaviour = true
+
+	return reflect.DeepEqual(subject, substitute)
 }
 
-func (m *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store sdk.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
+func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store sdk.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
 	//TODO implement me
 	panic("implement me")
 }
