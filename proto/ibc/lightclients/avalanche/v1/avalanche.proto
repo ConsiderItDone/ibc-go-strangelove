@@ -4,8 +4,12 @@ package ibc.lightclients.avalanche.v1;
 
 option go_package = "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche;avalanche";
 
-import "ibc/core/client/v1/client.proto";
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
+import "cosmos/ics23/v1/proofs.proto";
+import "ibc/core/client/v1/client.proto";
+import "google/protobuf/timestamp.proto";
+import "ibc/core/commitment/v1/commitment.proto";
 
 // ClientState defines the 14-avalanche client state
 message ClientState {
@@ -16,6 +20,43 @@ message ClientState {
   // duration of the period since the LastestTimestamp during which the
   // submitted headers are valid for upgrade
   google.protobuf.Duration trusting_period = 3 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+  // duration of the staking unbonding period
+  google.protobuf.Duration unbonding_period = 4 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+  // defines how much new (untrusted) header's Time can drift into the future.
+  google.protobuf.Duration max_clock_drift = 5 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    // Block height when the client was frozen due to a misbehaviour
+    ibc.core.client.v1.Height frozen_height = 6 [(gogoproto.nullable) = false];
   // the latest block height
-  ibc.core.client.v1.Height latest_height = 4 [(gogoproto.nullable) = false];
+  ibc.core.client.v1.Height latest_height = 7 [(gogoproto.nullable) = false];
+  
+  // Proof specifications used in verifying counterparty state
+  repeated cosmos.ics23.v1.ProofSpec proof_specs = 8;
+
+  // Path at which next upgraded client will be committed.
+  // Each element corresponds to the key for a single CommitmentProof in the
+  // chained proof. NOTE: ClientState must stored under
+  // `{upgradePath}/{upgradeHeight}/clientState` ConsensusState must be stored
+  // under `{upgradepath}/{upgradeHeight}/consensusState` For SDK chains using
+  // the default upgrade module, upgrade_path should be []string{"upgrade",
+  // "upgradedIBCState"}`
+  repeated string upgrade_path = 9;
+}
+
+// ConsensusState defines the consensus state from Tendermint.
+message ConsensusState {
+  option (gogoproto.goproto_getters) = false;
+
+  // timestamp that corresponds to the block height in which the ConsensusState
+  // was stored.
+  google.protobuf.Timestamp timestamp = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  // commitment root (i.e app hash)
+  ibc.core.commitment.v1.MerkleRoot root = 2 [(gogoproto.nullable) = false];
+  bytes next_validators_hash = 3 [(gogoproto.casttype) = "github.com/cometbft/cometbft/libs/bytes.HexBytes"];
+}
+
+// Fraction defines the protobuf message type for tmmath.Fraction that only
+// supports positive values.
+message Fraction {
+  uint64 numerator   = 1;
+  uint64 denominator = 2;
 }
