@@ -6,8 +6,6 @@ import (
 	"time"
 
 	errorsmod "cosmossdk.io/errors"
-	"github.com/cometbft/cometbft/light"
-	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
@@ -17,6 +15,28 @@ import (
 )
 
 var _ exported.ClientState = (*ClientState)(nil)
+
+const (
+	// MaxChainIDLen is a maximum length of the chain ID.
+	MaxChainIDLen = 50
+)
+
+// NewClientState creates a new ClientState instance
+func NewClientState(
+	chainID string, trustLevel Fraction,
+	trustingPeriod time.Duration,
+	latestHeight clienttypes.Height,
+	upgradePath []string,
+) *ClientState {
+	return &ClientState{
+		ChainId:        chainID,
+		TrustLevel:     trustLevel,
+		TrustingPeriod: trustingPeriod,
+		LatestHeight:   latestHeight,
+		FrozenHeight:   clienttypes.ZeroHeight(),
+		UpgradePath:    upgradePath,
+	}
+}
 
 func (cs *ClientState) ClientType() string {
 	return exported.Avalanche
@@ -31,26 +51,12 @@ func (cs *ClientState) Validate() error {
 		return errorsmod.Wrap(ErrInvalidChainID, "chain id cannot be empty string")
 	}
 
-	// NOTE: the value of tmtypes.MaxChainIDLen may change in the future.
-	// If this occurs, the code here must account for potential difference
-	// between the tendermint version being run by the counterparty chain
-	// and the tendermint version used by this light client.
-	// https://github.com/cosmos/ibc-go/issues/177
-	if len(cs.ChainId) > tmtypes.MaxChainIDLen {
-		return errorsmod.Wrapf(ErrInvalidChainID, "chainID is too long; got: %d, max: %d", len(cs.ChainId), tmtypes.MaxChainIDLen)
+	if len(cs.ChainId) > MaxChainIDLen {
+		return errorsmod.Wrapf(ErrInvalidChainID, "chainID is too long; got: %d, max: %d", len(cs.ChainId), MaxChainIDLen)
 	}
 
-	if err := light.ValidateTrustLevel(cs.TrustLevel.ToTendermint()); err != nil {
-		return err
-	}
 	if cs.TrustingPeriod <= 0 {
 		return errorsmod.Wrap(ErrInvalidTrustingPeriod, "trusting period must be greater than zero")
-	}
-	if cs.UnbondingPeriod <= 0 {
-		return errorsmod.Wrap(ErrInvalidUnbondingPeriod, "unbonding period must be greater than zero")
-	}
-	if cs.MaxClockDrift <= 0 {
-		return errorsmod.Wrap(ErrInvalidMaxClockDrift, "max clock drift must be greater than zero")
 	}
 
 	// the latest height revision number must match the chain id revision number
@@ -60,21 +66,6 @@ func (cs *ClientState) Validate() error {
 	}
 	if cs.LatestHeight.RevisionHeight == 0 {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "tendermint client's latest height revision height cannot be zero")
-	}
-	if cs.TrustingPeriod >= cs.UnbondingPeriod {
-		return errorsmod.Wrapf(
-			ErrInvalidTrustingPeriod,
-			"trusting period (%s) should be < unbonding period (%s)", cs.TrustingPeriod, cs.UnbondingPeriod,
-		)
-	}
-
-	if cs.ProofSpecs == nil {
-		return errorsmod.Wrap(ErrInvalidProofSpecs, "proof specs cannot be nil for tm client")
-	}
-	for i, spec := range cs.ProofSpecs {
-		if spec == nil {
-			return errorsmod.Wrapf(ErrInvalidProofSpecs, "proof spec cannot be nil at index: %d", i)
-		}
 	}
 	// UpgradePath may be empty, but if it isn't, each key must be non-empty
 	for i, k := range cs.UpgradePath {
@@ -117,11 +108,9 @@ func (cs *ClientState) ZeroCustomFields() exported.ClientState {
 	// copy over all chain-specified fields
 	// and leave custom fields empty
 	return &ClientState{
-		ChainId:         cs.ChainId,
-		UnbondingPeriod: cs.UnbondingPeriod,
-		LatestHeight:    cs.LatestHeight,
-		ProofSpecs:      cs.ProofSpecs,
-		UpgradePath:     cs.UpgradePath,
+		ChainId:      cs.ChainId,
+		LatestHeight: cs.LatestHeight,
+		UpgradePath:  cs.UpgradePath,
 	}
 }
 
@@ -297,5 +286,6 @@ func IsMatchingClientState(subject, substitute ClientState) bool {
 
 func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store sdk.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
 	//TODO implement me
+	
 	panic("implement me")
 }

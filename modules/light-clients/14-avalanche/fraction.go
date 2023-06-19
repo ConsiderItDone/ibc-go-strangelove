@@ -15,11 +15,3 @@ func NewFractionFromTm(f tmmath.Fraction) Fraction {
 		Denominator: f.Denominator,
 	}
 }
-
-// ToTendermint converts Fraction to tmmath.Fraction
-func (f Fraction) ToTendermint() tmmath.Fraction {
-	return tmmath.Fraction{
-		Numerator:   f.Numerator,
-		Denominator: f.Denominator,
-	}
-}

@@ -20,17 +20,11 @@ message ClientState {
   // duration of the period since the LastestTimestamp during which the
   // submitted headers are valid for upgrade
   google.protobuf.Duration trusting_period = 3 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-  // duration of the staking unbonding period
-  google.protobuf.Duration unbonding_period = 4 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-  // defines how much new (untrusted) header's Time can drift into the future.
-  google.protobuf.Duration max_clock_drift = 5 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-    // Block height when the client was frozen due to a misbehaviour
-    ibc.core.client.v1.Height frozen_height = 6 [(gogoproto.nullable) = false];
+  // Block height when the client was frozen due to a misbehaviour
+  ibc.core.client.v1.Height frozen_height = 6 [(gogoproto.nullable) = false];
   // the latest block height
   ibc.core.client.v1.Height latest_height = 7 [(gogoproto.nullable) = false];
   
-  // Proof specifications used in verifying counterparty state
-  repeated cosmos.ics23.v1.ProofSpec proof_specs = 8;
 
   // Path at which next upgraded client will be committed.
   // Each element corresponds to the key for a single CommitmentProof in the
@@ -39,12 +33,12 @@ message ClientState {
   // under `{upgradepath}/{upgradeHeight}/consensusState` For SDK chains using
   // the default upgrade module, upgrade_path should be []string{"upgrade",
   // "upgradedIBCState"}`
-  repeated string upgrade_path = 9;
+  repeated string upgrade_path = 8;
   
   // allow_update_after_expiry is deprecated
-  bool allow_update_after_expiry = 10 [deprecated = true];
+  bool allow_update_after_expiry = 9 [deprecated = true];
   // allow_update_after_misbehaviour is deprecated
-  bool allow_update_after_misbehaviour = 11 [deprecated = true];
+  bool allow_update_after_misbehaviour = 10 [deprecated = true];
 }
 
 // ConsensusState defines the consensus state from Tendermint.
@@ -55,8 +49,9 @@ message ConsensusState {
   // was stored.
   google.protobuf.Timestamp timestamp = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   // commitment root (i.e app hash)
-  ibc.core.commitment.v1.MerkleRoot root = 2 [(gogoproto.nullable) = false];
-  bytes next_validators_hash = 3 [(gogoproto.casttype) = "github.com/cometbft/cometbft/libs/bytes.HexBytes"];
+  //vdrs, totalWeight, err := GetCanonicalValidatorSet(ctx, pChainState, pChainHeight, subnetID)
+	repeated Validator vdrs = 2;
+  uint64 total_weigth = 3;
 }
 
 // Fraction defines the protobuf message type for tmmath.Fraction that only
@@ -64,4 +59,15 @@ message ConsensusState {
 message Fraction {
   uint64 numerator   = 1;
   uint64 denominator = 2;
+}
+
+message Header {
+  ibc.core.client.v1.Height      trusted_height     = 1 [(gogoproto.nullable) = false];
+}
+
+message Validator {
+	bytes PublicKey          = 1;
+	bytes PublicKeyBytes     = 2;
+	uint64 Weight            = 3;  
+	repeated bytes NodeIDs   = 4;
 }
