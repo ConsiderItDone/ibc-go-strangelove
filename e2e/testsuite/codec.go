@@ -25,8 +25,8 @@ import (
 	connectiontypes "github.com/cosmos/ibc-go/v7/modules/core/03-connection/types"
 	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
 	solomachine "github.com/cosmos/ibc-go/v7/modules/light-clients/06-solomachine"
-	avalanche "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 	ibctmtypes "github.com/cosmos/ibc-go/v7/modules/light-clients/07-tendermint"
+	avalanche "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 	simappparams "github.com/cosmos/ibc-go/v7/testing/simapp/params"
 )
 
