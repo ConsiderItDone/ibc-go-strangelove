@@ -67,7 +67,6 @@ message Header {
 
 message Validator {
   bytes PublicKey          = 1;
-  bytes PublicKeyBytes     = 2;
   uint64 Weight            = 3;  
   repeated bytes NodeIDs   = 4;
 }

@@ -2,7 +2,6 @@ package avalanche_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -23,7 +22,6 @@ const pChainHeight uint64 = 1337
 var (
 	_ utils.Sortable[*testValidator] = (*testValidator)(nil)
 
-	errTest       = errors.New("non-nil error")
 	sourceChainID = ids.GenerateTestID()
 	subnetID      = ids.GenerateTestID()
 
