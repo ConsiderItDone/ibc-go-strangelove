@@ -131,8 +131,7 @@ func (cs *ClientState) Initialize(ctx sdk.Context, cdc codec.BinaryCodec, client
 	}
 
 	setClientState(clientStore, cdc, cs)
-	setConsensusState(clientStore, cdc, consensusState, cs.GetLatestHeight())
-	setConsensusMetadata(ctx, clientStore, cs.GetLatestHeight())
+	SetConsensusState(clientStore, cdc, consensusState, cs.GetLatestHeight())
 
 	return nil
 }
@@ -235,7 +234,7 @@ func (cs *ClientState) CheckSubstituteAndUpdateState(ctx sdk.Context, cdc codec.
 		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "unable to retrieve latest consensus state for substitute client")
 	}
 
-	setConsensusState(subjectClientStore, cdc, consensusState, height)
+	SetConsensusState(subjectClientStore, cdc, consensusState, height)
 
 	// set metadata stored for the substitute consensus state
 	processedHeight, found := GetProcessedHeight(substituteClientStore, height)
@@ -286,6 +285,6 @@ func IsMatchingClientState(subject, substitute ClientState) bool {
 
 func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store sdk.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
 	//TODO implement me
-	
+
 	panic("implement me")
 }

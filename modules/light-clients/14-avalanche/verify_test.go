@@ -133,6 +133,43 @@ func TestSignatureVerification(t *testing.T) {
 			},
 			valid: true,
 		},
+		{
+			name: "weight overflow",
+			stateF: func(ctrl *gomock.Controller) validators.State {
+				state := validators.NewMockState(ctrl)
+				state.EXPECT().GetValidatorSet(gomock.Any(), pChainHeight, subnetID).Return(vdrs, nil)
+				return state
+			},
+			quorumNum: 2,
+			quorumDen: 2,
+			msgF: func(require *require.Assertions) ([]byte, [96]byte, *warp.UnsignedMessage) {
+				unsignedMsg, err := warp.NewUnsignedMessage(
+					sourceChainID,
+					ids.Empty,
+					[]byte{1, 2, 3},
+				)
+				require.NoError(err)
+
+				// [signers] has weight from [vdr[1], vdr[2]],
+				// which is 6, which is greater than 4.5
+				signers := set.NewBits()
+				signers.Add(1)
+				signers.Add(2)
+				signers_input := signers.Bytes()
+
+				unsignedBytes := unsignedMsg.Bytes()
+				vdr1Sig := bls.Sign(testVdrs[1].sk, unsignedBytes)
+				vdr2Sig := bls.Sign(testVdrs[2].sk, unsignedBytes)
+				aggSig, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig, vdr2Sig})
+				require.NoError(err)
+				aggSigBytes := [bls.SignatureLen]byte{}
+				copy(aggSigBytes[:], bls.SignatureToBytes(aggSig))
+
+				require.NoError(err)
+				return signers_input, aggSigBytes, unsignedMsg
+			},
+			valid: false,
+		},
 	}
 
 	for _, tt := range tests {

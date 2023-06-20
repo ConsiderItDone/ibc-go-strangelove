@@ -1,6 +1,9 @@
 package avalanche_test
 
 import (
+	"github.com/cosmos/cosmos-sdk/codec"
+	cosmostypes "github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/std"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
@@ -18,7 +21,14 @@ func (suite *AvalancheTestSuite) TestStatus() {
 	var (
 		path        *ibctesting.Path
 		clientState *ibcava.ClientState
+		marshaler   codec.Codec
 	)
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler = codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
 
 	testCases := []struct {
 		name      string
@@ -28,11 +38,9 @@ func (suite *AvalancheTestSuite) TestStatus() {
 		{"client is active", func() {}, exported.Active},
 		{"client is frozen", func() {
 			clientState.FrozenHeight = clienttypes.NewHeight(0, 1)
-			path.EndpointA.SetClientState(clientState)
 		}, exported.Frozen},
 		{"client status without consensus state", func() {
 			clientState.LatestHeight = clientState.LatestHeight.Increment().(clienttypes.Height)
-			path.EndpointA.SetClientState(clientState)
 		}, exported.Expired},
 		{"client status is expired", func() {
 			suite.coordinator.IncrementTimeBy(clientState.TrustingPeriod)
@@ -40,15 +48,29 @@ func (suite *AvalancheTestSuite) TestStatus() {
 	}
 
 	for _, tc := range testCases {
+
+		clientState = ibcava.NewClientState(
+			chainID,
+			ibcava.Fraction{1, 1},
+			trustingPeriod,
+			newClientHeight,
+			upgradePath,
+		)
+
 		path = ibctesting.NewPath(suite.chainA, suite.chainB)
 		suite.coordinator.SetupClients(path)
 
 		clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
-		clientState = path.EndpointA.GetClientState().(*ibcava.ClientState)
+
+		consensusState := &ibcava.ConsensusState{
+			Timestamp: suite.chainA.GetContext().BlockTime(),
+		}
+
+		ibcava.SetConsensusState(clientStore, marshaler, consensusState, clientState.GetLatestHeight())
 
 		tc.malleate()
 
-		status := clientState.Status(suite.chainA.GetContext(), clientStore, suite.chainA.App.AppCodec())
+		status := clientState.Status(suite.chainA.GetContext(), clientStore, marshaler)
 		suite.Require().Equal(tc.expStatus, status)
 	}
 }
@@ -123,6 +145,14 @@ func (suite *AvalancheTestSuite) TestValidate() {
 }
 
 func (suite *AvalancheTestSuite) TestInitialize() {
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler := codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
+
+
 	testCases := []struct {
 		name           string
 		consensusState exported.ConsensusState
@@ -151,9 +181,7 @@ func (suite *AvalancheTestSuite) TestInitialize() {
 
 		store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
 
-		
-
-		err := clientState.Initialize(suite.chainA.GetContext(), suite.cdc, store, tc.consensusState)
+		err := clientState.Initialize(suite.chainA.GetContext(), marshaler, store, tc.consensusState)
 
 		if tc.expPass {
 			suite.Require().NoError(err, "valid case returned an error")
