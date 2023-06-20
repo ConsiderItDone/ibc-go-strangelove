@@ -134,7 +134,7 @@ func TestSignatureVerification(t *testing.T) {
 			valid: true,
 		},
 		{
-			name: "weight overflow",
+			name: "invalid quorumNum quorumDen",
 			stateF: func(ctrl *gomock.Controller) validators.State {
 				state := validators.NewMockState(ctrl)
 				state.EXPECT().GetValidatorSet(gomock.Any(), pChainHeight, subnetID).Return(vdrs, nil)
