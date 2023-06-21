@@ -25,7 +25,6 @@ message ClientState {
   // the latest block height
   ibc.core.client.v1.Height latest_height = 7 [(gogoproto.nullable) = false];
 
-
   // Path at which next upgraded client will be committed.
   // Each element corresponds to the key for a single CommitmentProof in the
   // chained proof. NOTE: ClientState must stored under
@@ -49,9 +48,9 @@ message ConsensusState {
   // was stored.
   google.protobuf.Timestamp timestamp = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   // commitment root (i.e app hash)
-  //vdrs, totalWeight, err := GetCanonicalValidatorSet(ctx, pChainState, pChainHeight, subnetID)
-  repeated Validator vdrs = 2;
-  uint64 total_weigth = 3;
+  // vdrs, totalWeight, err := GetCanonicalValidatorSet(ctx, pChainState, pChainHeight, subnetID)
+  repeated Validator vdrs         = 2;
+  uint64             total_weigth = 3;
 }
 
 // Fraction defines the protobuf message type for tmmath.Fraction that only
@@ -62,11 +61,11 @@ message Fraction {
 }
 
 message Header {
-  ibc.core.client.v1.Height      trusted_height     = 1 [(gogoproto.nullable) = false];
+  ibc.core.client.v1.Height trusted_height = 1 [(gogoproto.nullable) = false];
 }
 
 message Validator {
-  bytes PublicKey          = 1;
-  uint64 Weight            = 3;  
+  bytes          PublicKey = 1;
+  uint64         Weight    = 3;
   repeated bytes NodeIDs   = 4;
 }
