@@ -187,7 +187,6 @@ func TestSignatureVerification(t *testing.T) {
 			}
 
 			err = ibcava.Verify(signersInput, signature, unsignedBytes, vdrsIn, totalWeight,
-				pChainHeight,
 				tt.quorumNum,
 				tt.quorumDen)
 

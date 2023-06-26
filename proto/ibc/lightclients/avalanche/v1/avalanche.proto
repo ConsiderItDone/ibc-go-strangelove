@@ -20,10 +20,15 @@ message ClientState {
   // duration of the period since the LastestTimestamp during which the
   // submitted headers are valid for upgrade
   google.protobuf.Duration trusting_period = 3 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+  // defines how much new (untrusted) header's Time can drift into the future.
+  google.protobuf.Duration max_clock_drift = 4 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
   // Block height when the client was frozen due to a misbehaviour
-  ibc.core.client.v1.Height frozen_height = 6 [(gogoproto.nullable) = false];
+  ibc.core.client.v1.Height frozen_height = 5 [(gogoproto.nullable) = false];
   // the latest block height
-  ibc.core.client.v1.Height latest_height = 7 [(gogoproto.nullable) = false];
+  ibc.core.client.v1.Height latest_height = 6 [(gogoproto.nullable) = false];
+
+  // Proof specifications used in verifying counterparty state
+  repeated cosmos.ics23.v1.ProofSpec proof_specs = 7;
 
   // Path at which next upgraded client will be committed.
   // Each element corresponds to the key for a single CommitmentProof in the
@@ -48,9 +53,14 @@ message ConsensusState {
   // was stored.
   google.protobuf.Timestamp timestamp = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   // commitment root (i.e app hash)
-  // vdrs, totalWeight, err := GetCanonicalValidatorSet(ctx, pChainState, pChainHeight, subnetID)
-  repeated Validator vdrs         = 2;
-  uint64             total_weigth = 3;
+
+  bytes storage_root         = 2;
+  bytes signedStorage_root   = 3;
+  bytes validator_set        = 4;
+  bytes signed_validator_set = 5;
+
+  repeated Validator vdrs          = 6;
+  bytes              signers_input = 8;
 }
 
 // Fraction defines the protobuf message type for tmmath.Fraction that only
@@ -65,7 +75,7 @@ message Header {
 }
 
 message Validator {
-  bytes          PublicKey = 1;
-  uint64         Weight    = 3;
-  repeated bytes NodeIDs   = 4;
+  bytes          public_key_byte = 1;
+  uint64         weight          = 3;
+  repeated bytes nodeIDs         = 4;
 }

@@ -15,11 +15,15 @@ const SentinelRoot = "sentinel_root"
 // NewConsensusState creates a new ConsensusState instance.
 func NewConsensusState(
 	timestamp time.Time, vdrs []*Validator, totalWeigth uint64,
+	storageRoot, signedStorageRoot, validatorSet, signedValidatorSet []byte,
 ) *ConsensusState {
 	return &ConsensusState{
-		Timestamp:   timestamp,
-		Vdrs:        vdrs,
-		TotalWeigth: totalWeigth,
+		Timestamp:          timestamp,
+		Vdrs:               vdrs,
+		StorageRoot:        storageRoot,
+		SignedStorageRoot:  signedStorageRoot,
+		ValidatorSet:       validatorSet,
+		SignedValidatorSet: signedValidatorSet,
 	}
 }
 

@@ -8,7 +8,9 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	ibcerrors "github.com/cosmos/ibc-go/v7/internal/errors"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	commitmenttypes "github.com/cosmos/ibc-go/v7/modules/core/23-commitment/types"
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
@@ -136,11 +138,6 @@ func (cs *ClientState) Initialize(ctx sdk.Context, cdc codec.BinaryCodec, client
 	return nil
 }
 
-func (cs *ClientState) VerifyMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path, value []byte) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 // verifyDelayPeriodPassed will ensure that at least delayTimePeriod amount of time and delayBlockPeriod number of blocks have passed
 // since consensus state was submitted before allowing verification to continue.
 func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exported.Height, delayTimePeriod, delayBlockPeriod uint64) error {
@@ -182,11 +179,6 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 	return nil
 }
 func (cs *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, msg exported.ClientMessage) bool {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (cs *ClientState) VerifyNonMembership(ctx sdk.Context, clientStore sdk.KVStore, cdc codec.BinaryCodec, height exported.Height, delayTimePeriod uint64, delayBlockPeriod uint64, proof []byte, path exported.Path) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -287,4 +279,105 @@ func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.Bi
 	//TODO implement me
 
 	panic("implement me")
+}
+
+// VerifyMembership is a generic proof verification method which verifies a proof of the existence of a value at a given CommitmentPath at the specified height.
+// The caller is expected to construct the full CommitmentPath from a CommitmentPrefix and a standardized path (as defined in ICS 24).
+// If a zero proof height is passed in, it will fail to retrieve the associated consensus state.
+func (cs ClientState) VerifyMembership(
+	ctx sdk.Context,
+	clientStore sdk.KVStore,
+	cdc codec.BinaryCodec,
+	height exported.Height,
+	delayTimePeriod uint64,
+	delayBlockPeriod uint64,
+	proof []byte,
+	path exported.Path,
+	value []byte,
+) error {
+	if cs.GetLatestHeight().LT(height) {
+		return errorsmod.Wrapf(
+			ibcerrors.ErrInvalidHeight,
+			"client state height < proof height (%d < %d), please ensure the client has been updated", cs.GetLatestHeight(), height,
+		)
+	}
+	
+	if err := verifyDelayPeriodPassed(ctx, clientStore, height, delayTimePeriod, delayBlockPeriod); err != nil {
+		return err
+	}
+
+	consensusState, found := GetConsensusState(clientStore, cdc, height)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
+	}
+	
+	vdrs, totalWeigth, err := ValidateValidatorSet(consensusState.Vdrs)
+	if err != nil {
+		return err
+	}
+	Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+
+	var merkleProof commitmenttypes.MerkleProof
+	if err := cdc.Unmarshal(proof, &merkleProof); err != nil {
+		return errorsmod.Wrap(commitmenttypes.ErrInvalidProof, "failed to unmarshal proof into ICS 23 commitment merkle proof")
+	}
+
+	merklePath, ok := path.(commitmenttypes.MerklePath)
+	if !ok {
+		return errorsmod.Wrapf(ibcerrors.ErrInvalidType, "expected %T, got %T", commitmenttypes.MerklePath{}, path)
+	}
+	
+	return merkleProof.VerifyMembership(cs.ProofSpecs, commitmenttypes.NewMerkleRoot(consensusState.StorageRoot), merklePath, value)
+}
+
+
+// VerifyNonMembership is a generic proof verification method which verifies the absence of a given CommitmentPath at a specified height.
+// The caller is expected to construct the full CommitmentPath from a CommitmentPrefix and a standardized path (as defined in ICS 24).
+// If a zero proof height is passed in, it will fail to retrieve the associated consensus state.
+func (cs ClientState) VerifyNonMembership(
+	ctx sdk.Context,
+	clientStore sdk.KVStore,
+	cdc codec.BinaryCodec,
+	height exported.Height,
+	delayTimePeriod uint64,
+	delayBlockPeriod uint64,
+	proof []byte,
+	path exported.Path,
+) error {
+	if cs.GetLatestHeight().LT(height) {
+		return errorsmod.Wrapf(
+			ibcerrors.ErrInvalidHeight,
+			"client state height < proof height (%d < %d), please ensure the client has been updated", cs.GetLatestHeight(), height,
+		)
+	}
+
+	if err := verifyDelayPeriodPassed(ctx, clientStore, height, delayTimePeriod, delayBlockPeriod); err != nil {
+		return err
+	}
+
+	consensusState, found := GetConsensusState(clientStore, cdc, height)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
+	}
+		
+	vdrs, totalWeigth, err := ValidateValidatorSet(consensusState.Vdrs)
+	if err != nil {
+		return err
+	}
+	Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+
+	var merkleProof commitmenttypes.MerkleProof
+	if err := cdc.Unmarshal(proof, &merkleProof); err != nil {
+		return errorsmod.Wrap(commitmenttypes.ErrInvalidProof, "failed to unmarshal proof into ICS 23 commitment merkle proof")
+	}
+
+	merklePath, ok := path.(commitmenttypes.MerklePath)
+	if !ok {
+		return errorsmod.Wrapf(ibcerrors.ErrInvalidType, "expected %T, got %T", commitmenttypes.MerklePath{}, path)
+	}
+
+
+	return merkleProof.VerifyNonMembership(cs.ProofSpecs, commitmenttypes.NewMerkleRoot(consensusState.StorageRoot), merklePath)
 }
