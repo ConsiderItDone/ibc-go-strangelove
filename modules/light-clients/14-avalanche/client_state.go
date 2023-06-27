@@ -148,6 +148,7 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 			return errorsmod.Wrapf(ErrProcessedTimeNotFound, "processed time not found for height: %s", proofHeight)
 		}
 
+		// TODO
 		currentTimestamp := uint64(ctx.BlockTime().UnixNano())
 		validTime := processedTime + delayTimePeriod
 
@@ -315,9 +316,14 @@ func (cs ClientState) VerifyMembership(
 	if err != nil {
 		return err
 	}
-	Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-	Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return err
+	}
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return err
+	}
 	var merkleProof commitmenttypes.MerkleProof
 	if err := cdc.Unmarshal(proof, &merkleProof); err != nil {
 		return errorsmod.Wrap(commitmenttypes.ErrInvalidProof, "failed to unmarshal proof into ICS 23 commitment merkle proof")
@@ -365,8 +371,15 @@ func (cs ClientState) VerifyNonMembership(
 	if err != nil {
 		return err
 	}
-	Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-	Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return err
+	}
+
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.StorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return err
+	}
 
 	var merkleProof commitmenttypes.MerkleProof
 	if err := cdc.Unmarshal(proof, &merkleProof); err != nil {
