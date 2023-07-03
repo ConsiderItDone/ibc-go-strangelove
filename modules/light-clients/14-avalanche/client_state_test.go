@@ -566,10 +566,14 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			storageRoot = trieEx.Hash().Bytes()
 			prover := makeProvers(trieEx)
 			_, kv := pick(vals)
-			proofOut, _ := avalanche.IterateVals(prover(kv.k))
-			proof = proofOut
 
-			path = &avalanche.MerkleKey{Key: "New key"}
+			proofOut := prover(kv.k)
+			key := "no key"
+			trieEx.Prove([]byte(key), 0, proofOut)
+
+			proof, _ = avalanche.IterateVals(proofOut)
+
+			path = &avalanche.MerkleKey{Key: key}
 
 			signers := set.NewBits()
 			signers.Add(1)
