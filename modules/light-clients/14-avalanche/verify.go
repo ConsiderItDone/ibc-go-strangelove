@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/subnet-evm/ethdb/memorydb"
 )
 
 func Verify(
@@ -50,12 +51,21 @@ func Verify(
 		return err
 	}
 
+	fmt.Println("")
+	fmt.Printf("signature: %064x \n", signature)
+	fmt.Printf("data: %064x \n", data)
 	// Parse the aggregate signature
 	aggSig, err := bls.SignatureFromBytes(signature[:])
 	if err != nil {
 		return fmt.Errorf("failed to parse signature: %v", err)
 	}
-
+	for i, vdr := range signers {
+		fmt.Printf("vdr number: %d \n", i)
+		fmt.Printf("vdr.NodeIDs: %064x \n", vdr.NodeIDs)
+		fmt.Printf("vdr.PublicKeyBytes: %064x \n", vdr.PublicKeyBytes)
+		fmt.Printf("vdr.Weight: %d \n", vdr.Weight)
+	}
+	fmt.Println("")
 	// Create the aggregate public key
 	aggPubKey, err := warp.AggregatePublicKeys(signers)
 	if err != nil {
@@ -63,7 +73,8 @@ func Verify(
 	}
 
 	if !bls.Verify(aggPubKey, aggSig, data) {
-		return fmt.Errorf("signature is invalid")
+		fmt.Println("PANIC ")
+		return fmt.Errorf("signature is invalid (IT IS ERROR)")
 	}
 	return nil
 }
@@ -76,7 +87,7 @@ func ValidateValidatorSet(
 		totalWeight uint64
 		err         error
 	)
-	for _, vdr := range vdrSet {
+	for i, vdr := range vdrSet {
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err)
@@ -97,8 +108,9 @@ func ValidateValidatorSet(
 			Weight:         vdr.Weight,
 			NodeIDs:        SetNodeIDs(vdr.NodeIDs),
 		}
-		vdrs = append(vdrs, warpVdr)
+		vdrs[i] = warpVdr
 	}
+
 	utils.Sort(vdrs)
 	return vdrs, totalWeight, nil
 }
@@ -122,4 +134,24 @@ func SetNodeIDs(data [][]byte) []ids.NodeID {
 		copy(nodeIDs[i][len(nodeIDs[i])-len(b):], b)
 	}
 	return nodeIDs
+}
+
+func (k *MerkleKey) Empty() bool {
+	return len(k.Key) == 0
+}
+
+func IterateVals(db *memorydb.Database) ([][]byte, error) {
+	if db == nil {
+		return nil, nil
+	}
+	// iterate db into [][]byte and return
+	it := db.NewIterator(nil, nil)
+	defer it.Release()
+
+	vals := make([][]byte, 0, db.Len())
+	for it.Next() {
+		vals = append(vals, it.Value())
+	}
+
+	return vals, it.Error()
 }

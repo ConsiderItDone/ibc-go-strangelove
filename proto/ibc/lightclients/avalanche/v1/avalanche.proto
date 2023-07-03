@@ -27,8 +27,7 @@ message ClientState {
   // the latest block height
   ibc.core.client.v1.Height latest_height = 6 [(gogoproto.nullable) = false];
 
-  // Proof specifications used in verifying counterparty state
-  repeated cosmos.ics23.v1.ProofSpec proof_specs = 7;
+  repeated bytes proof = 7;
 
   // Path at which next upgraded client will be committed.
   // Each element corresponds to the key for a single CommitmentProof in the
@@ -55,7 +54,7 @@ message ConsensusState {
   // commitment root (i.e app hash)
 
   bytes storage_root         = 2;
-  bytes signedStorage_root   = 3;
+  bytes signed_storage_root  = 3;
   bytes validator_set        = 4;
   bytes signed_validator_set = 5;
 
@@ -78,4 +77,8 @@ message Validator {
   bytes          public_key_byte = 1;
   uint64         weight          = 3;
   repeated bytes nodeIDs         = 4;
+}
+
+message MerkleKey {
+  string         key          = 1;
 }
