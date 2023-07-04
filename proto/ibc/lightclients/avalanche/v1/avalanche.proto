@@ -36,7 +36,7 @@ message ClientState {
   // under `{upgradepath}/{upgradeHeight}/consensusState` For SDK chains using
   // the default upgrade module, upgrade_path should be []string{"upgrade",
   // "upgradedIBCState"}`
-  repeated string upgrade_path = 8;
+  string upgrade_path = 8;
 
   // allow_update_after_expiry is deprecated
   bool allow_update_after_expiry = 9 [deprecated = true];
@@ -69,8 +69,25 @@ message Fraction {
   uint64 denominator = 2;
 }
 
+message Misbehaviour {
+  option (gogoproto.goproto_getters) = false;
+
+  // ClientID is deprecated
+  string client_id = 1 [deprecated = true];
+  Header header_1  = 2 [(gogoproto.customname) = "Header1"];
+  Header header_2  = 3 [(gogoproto.customname) = "Header2"];
+}
+
 message Header {
   ibc.core.client.v1.Height trusted_height = 1 [(gogoproto.nullable) = false];
+
+  
+  bytes storage_root         = 2;
+  bytes signed_storage_root  = 3;
+  bytes validator_set        = 4;
+  bytes signed_validator_set = 5;
+  repeated Validator vdrs          = 6;
+  bytes              signers_input = 8;
 }
 
 message Validator {

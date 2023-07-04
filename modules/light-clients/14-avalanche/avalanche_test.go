@@ -20,12 +20,13 @@ const (
 	chainIDRevision1               = "gaia-revision-1"
 	clientID                       = "gaiamainnet"
 	trustingPeriod   time.Duration = time.Hour * 24 * 7 * 2
+	maxClockDrift    time.Duration = time.Second * 10
 )
 
 var (
 	height          = clienttypes.NewHeight(0, 4)
 	newClientHeight = clienttypes.NewHeight(1, 1)
-	upgradePath     = []string{"upgrade", "upgradedIBCState"}
+	upgradePath     = string("upgrade")
 )
 
 type AvalancheTestSuite struct {

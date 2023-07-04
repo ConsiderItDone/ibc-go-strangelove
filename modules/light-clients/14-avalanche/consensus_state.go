@@ -5,6 +5,7 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
@@ -43,6 +44,21 @@ func (cs ConsensusState) GetTimestamp() uint64 {
 // NOTE: ProcessedTimestamp may be zero if this is an initial consensus state passed in by relayer
 // as opposed to a consensus state constructed by the chain.
 func (cs ConsensusState) ValidateBasic() error {
+	if len(cs.StorageRoot) == 0 {
+		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "root cannot be empty")
+	}
+	if len(cs.SignedStorageRoot) != bls.SignatureLen {
+		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "root signature length not equal bls.SignatureLen")
+	}
+	if len(cs.ValidatorSet) == 0 {
+		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "validator set cannot be empty")
+	}
+	if len(cs.SignedValidatorSet) != bls.SignatureLen {
+		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "validator set signature length not equal bls.SignatureLen")
+	}
+	if len(cs.SignersInput) == 0 {
+		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "SignersInput cannot be empty")
+	}
 	if cs.Timestamp.Unix() <= 0 {
 		return errorsmod.Wrap(clienttypes.ErrInvalidConsensus, "timestamp must be a positive Unix time")
 	}

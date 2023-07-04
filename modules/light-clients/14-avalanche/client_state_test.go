@@ -68,6 +68,7 @@ func (suite *AvalancheTestSuite) TestStatus() {
 			chainID,
 			ibcava.Fraction{1, 1},
 			trustingPeriod,
+			maxClockDrift,
 			newClientHeight,
 			upgradePath,
 			nil,
@@ -99,17 +100,17 @@ func (suite *AvalancheTestSuite) TestValidate() {
 	}{
 		{
 			name:        "valid client",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, height, upgradePath, nil),
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, upgradePath, nil),
 			expPass:     true,
 		},
 		{
-			name:        "valid client with nil upgrade path",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, height, nil, nil),
+			name:        "valid client with empty upgrade path",
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, "", nil),
 			expPass:     true,
 		},
 		{
 			name:        "invalid chainID",
-			clientState: ibcava.NewClientState("  ", ibcava.DefaultTrustLevel, trustingPeriod, height, upgradePath, nil),
+			clientState: ibcava.NewClientState("  ", ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, upgradePath, nil),
 			expPass:     false,
 		},
 		{
@@ -117,7 +118,7 @@ func (suite *AvalancheTestSuite) TestValidate() {
 			// Do not only fix the test, fix the code!
 			// https://github.com/cosmos/ibc-go/issues/177
 			name:        "valid chainID - chainID validation failed for chainID of length 50! ",
-			clientState: ibcava.NewClientState(fiftyCharChainID, ibcava.DefaultTrustLevel, trustingPeriod, height, upgradePath, nil),
+			clientState: ibcava.NewClientState(fiftyCharChainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, upgradePath, nil),
 			expPass:     true,
 		},
 		{
@@ -125,27 +126,27 @@ func (suite *AvalancheTestSuite) TestValidate() {
 			// Do not only fix the test, fix the code!
 			// https://github.com/cosmos/ibc-go/issues/177
 			name:        "invalid chainID - chainID validation did not fail for chainID of length 51! ",
-			clientState: ibcava.NewClientState(fiftyOneCharChainID, ibcava.DefaultTrustLevel, trustingPeriod, height, upgradePath, nil),
+			clientState: ibcava.NewClientState(fiftyOneCharChainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, upgradePath, nil),
 			expPass:     false,
 		},
 		{
 			name:        "invalid zero trusting period",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, 0, height, upgradePath, nil),
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, 0, maxClockDrift, height, upgradePath, nil),
 			expPass:     false,
 		},
 		{
 			name:        "invalid negative trusting period",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, -1, height, upgradePath, nil),
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, -1, maxClockDrift, height, upgradePath, nil),
 			expPass:     false,
 		},
 		{
 			name:        "invalid revision number",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, clienttypes.NewHeight(1, 1), upgradePath, nil),
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, clienttypes.NewHeight(1, 1), upgradePath, nil),
 			expPass:     false,
 		},
 		{
 			name:        "invalid revision height",
-			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, clienttypes.ZeroHeight(), upgradePath, nil),
+			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, clienttypes.ZeroHeight(), upgradePath, nil),
 			expPass:     false,
 		},
 	}
@@ -191,8 +192,8 @@ func (suite *AvalancheTestSuite) TestInitialize() {
 
 		clientState := ibcava.NewClientState(
 			path.EndpointB.Chain.ChainID,
-			ibcava.DefaultTrustLevel, trustingPeriod,
-			suite.chainB.LastHeader.GetTrustedHeight(), ibctesting.UpgradePath, nil)
+			ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+			suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, nil)
 
 		store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
 
@@ -377,8 +378,8 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 
 			clientState := ibcava.NewClientState(
 				testingpath.EndpointA.Chain.ChainID,
-				ibcava.DefaultTrustLevel, trustingPeriod,
-				suite.chainB.LastHeader.GetTrustedHeight(), ibctesting.UpgradePath, proof)
+				ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+				suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, proof)
 
 			ctx := suite.chainA.GetContext()
 			store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, testingpath.EndpointA.ClientID)
@@ -622,8 +623,8 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 
 			clientState := ibcava.NewClientState(
 				testingpath.EndpointA.Chain.ChainID,
-				ibcava.DefaultTrustLevel, trustingPeriod,
-				suite.chainB.LastHeader.GetTrustedHeight(), ibctesting.UpgradePath, proof)
+				ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+				suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, proof)
 
 			ctx := suite.chainA.GetContext()
 			store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, testingpath.EndpointA.ClientID)

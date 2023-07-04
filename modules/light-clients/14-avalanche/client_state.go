@@ -33,14 +33,16 @@ const (
 func NewClientState(
 	chainID string, trustLevel Fraction,
 	trustingPeriod time.Duration,
+	maxClockDrift time.Duration,
 	latestHeight clienttypes.Height,
-	upgradePath []string,
+	upgradePath string,
 	proof [][]byte,
 ) *ClientState {
 	return &ClientState{
 		ChainId:        chainID,
 		TrustLevel:     trustLevel,
 		TrustingPeriod: trustingPeriod,
+		MaxClockDrift:  maxClockDrift,
 		LatestHeight:   latestHeight,
 		FrozenHeight:   clienttypes.ZeroHeight(),
 		UpgradePath:    upgradePath,
@@ -50,6 +52,10 @@ func NewClientState(
 
 func (cs *ClientState) ClientType() string {
 	return exported.Avalanche
+}
+
+func (cs *ClientState) GetChainID() string {
+	return cs.ChainId
 }
 
 func (cs *ClientState) GetLatestHeight() exported.Height {
@@ -78,10 +84,8 @@ func (cs *ClientState) Validate() error {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "tendermint client's latest height revision height cannot be zero")
 	}
 	// UpgradePath may be empty, but if it isn't, each key must be non-empty
-	for i, k := range cs.UpgradePath {
-		if strings.TrimSpace(k) == "" {
-			return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "key in upgrade path at index %d cannot be empty", i)
-		}
+	for cs.UpgradePath == "" {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "upgrade path cannot be empty")
 	}
 
 	return nil
@@ -187,18 +191,19 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 
 	return nil
 }
-func (cs *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, msg exported.ClientMessage) bool {
-	//TODO implement me
-	panic("implement me")
-}
 
 func (cs *ClientState) VerifyClientMessage(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) error {
+	// switch msg := clientMsg.(type) {
+	// case *Header:
+	// 	return cs.verifyHeader(ctx, clientStore, cdc, msg)
+	// case *Misbehaviour:
+	// 	return cs.verifyMisbehaviour(ctx, clientStore, cdc, msg)
+	// default:
+	// 	return clienttypes.ErrInvalidClientType
+	// }
 	//TODO implement me
 	panic("implement me")
 }
-
-// FrozenHeight is same for all misbehaviour
-var FrozenHeight = clienttypes.NewHeight(0, 1)
 
 func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) {
 	cs.FrozenHeight = FrozenHeight
@@ -207,8 +212,73 @@ func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.Bina
 }
 
 func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) []exported.Height {
-	//TODO implement me
-	panic("implement me")
+	header, ok := clientMsg.(*Header)
+	if !ok {
+		panic(fmt.Errorf("expected type %T, got %T", &Header{}, clientMsg))
+	}
+
+	cs.pruneOldestConsensusState(ctx, cdc, clientStore)
+
+	// check for duplicate update
+	if consensusState, _ := GetConsensusState(clientStore, cdc, header.GetHeight()); consensusState != nil {
+		// perform no-op
+		return []exported.Height{header.GetHeight()}
+	}
+
+	height := header.GetHeight().(clienttypes.Height)
+	if height.GT(cs.LatestHeight) {
+		cs.LatestHeight = height
+	}
+
+	consensusState := &ConsensusState{
+		Timestamp:          header.GetTime(),
+		StorageRoot:        header.StorageRoot,
+		SignedStorageRoot:  header.SignedStorageRoot,
+		ValidatorSet:       header.ValidatorSet,
+		SignedValidatorSet: header.SignedValidatorSet,
+		Vdrs:               header.Vdrs,
+		SignersInput:       header.SignersInput,
+	}
+
+	// set client state, consensus state and asssociated metadata
+	setClientState(clientStore, cdc, cs)
+	SetConsensusState(clientStore, cdc, consensusState, header.GetHeight())
+	setConsensusMetadata(ctx, clientStore, header.GetHeight())
+
+	return []exported.Height{height}
+}
+
+// pruneOldestConsensusState will retrieve the earliest consensus state for this clientID and check if it is expired. If it is,
+// that consensus state will be pruned from store along with all associated metadata. This will prevent the client store from
+// becoming bloated with expired consensus states that can no longer be used for updates and packet verification.
+func (cs ClientState) pruneOldestConsensusState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore) {
+	// Check the earliest consensus state to see if it is expired, if so then set the prune height
+	// so that we can delete consensus state and all associated metadata.
+	var (
+		pruneHeight exported.Height
+	)
+
+	pruneCb := func(height exported.Height) bool {
+		consState, found := GetConsensusState(clientStore, cdc, height)
+		// this error should never occur
+		if !found {
+			panic(errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "failed to retrieve consensus state at height: %s", height))
+		}
+
+		if cs.IsExpired(consState.Timestamp, ctx.BlockTime()) {
+			pruneHeight = height
+		}
+
+		return true
+	}
+
+	IterateConsensusStateAscending(clientStore, pruneCb)
+
+	// if pruneHeight is set, delete consensus state and metadata
+	if pruneHeight != nil {
+		deleteConsensusState(clientStore, pruneHeight)
+		deleteConsensusMetadata(clientStore, pruneHeight)
+	}
 }
 
 func (cs *ClientState) CheckSubstituteAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, subjectClientStore, substituteClientStore sdk.KVStore, substituteClient exported.ClientState) error {
@@ -284,10 +354,155 @@ func IsMatchingClientState(subject, substitute ClientState) bool {
 	return reflect.DeepEqual(subject, substitute)
 }
 
-func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store sdk.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
-	//TODO implement me
+func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, upgradedClient exported.ClientState, upgradedConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
+	if len(cs.UpgradePath) == 0 {
+		return errorsmod.Wrap(clienttypes.ErrInvalidUpgradeClient, "cannot upgrade client, no upgrade path set")
+	}
 
-	panic("implement me")
+	// last height of current counterparty chain must be client's latest height
+	lastHeight := cs.GetLatestHeight()
+
+	if !upgradedClient.GetLatestHeight().GT(lastHeight) {
+		return errorsmod.Wrapf(ibcerrors.ErrInvalidHeight, "upgraded client height %s must be at greater than current client height %s",
+			upgradedClient.GetLatestHeight(), lastHeight)
+	}
+
+	// upgraded client state and consensus state must be IBC tendermint client state and consensus state
+	// this may be modified in the future to upgrade to a new IBC tendermint type
+	// counterparty must also commit to the upgraded consensus state at a sub-path under the upgrade path specified
+	avaUpgradeClient, ok := upgradedClient.(*ClientState)
+	if !ok {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidClientType, "upgraded client must be Tendermint client. expected: %T got: %T",
+			&ClientState{}, upgradedClient)
+	}
+	avaUpgradeConsState, ok := upgradedConsState.(*ConsensusState)
+	if !ok {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidConsensus, "upgraded consensus state must be Tendermint consensus state. expected %T, got: %T",
+			&ConsensusState{}, upgradedConsState)
+	}
+
+	// Must prove against latest consensus state to ensure we are verifying against latest upgrade plan
+	// This verifies that upgrade is intended for the provided revision, since committed client must exist
+	// at this consensus state
+	consState, found := GetConsensusState(clientStore, cdc, lastHeight)
+	if !found {
+		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "could not retrieve consensus state for lastHeight")
+	}
+
+	// Verify client proof
+	bz, err := cdc.MarshalInterface(upgradedClient.ZeroCustomFields())
+	if err != nil {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "could not marshal client state: %v", err)
+	}
+
+	var proofClientMerkle ethdb.Database
+	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
+	// function as it will assert that all the leaves belonging to the specified root are present.
+	if len(cs.Proof) > 0 {
+		proofClientMerkle = memorydb.New()
+		defer proofClientMerkle.Close()
+		for _, proofVal := range cs.Proof {
+			proofKey := crypto.Keccak256(proofVal)
+			if err := proofClientMerkle.Put(proofKey, proofVal); err != nil {
+				return err
+			}
+		}
+	} else {
+		return fmt.Errorf("client path is invalid")
+	}
+
+	keyClientMerkle := MerkleKey{Key: cs.UpgradePath}
+
+	verifyValueClientMerkle, err := trie.VerifyProof(
+		common.BytesToHash(consState.StorageRoot),
+		[]byte(keyClientMerkle.Key),
+		proofClientMerkle,
+	)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(verifyValueClientMerkle, bz) {
+		return errorsmod.Wrapf(err, "client state proof failed. Path: %s", keyClientMerkle)
+	}
+
+	// Verify consensus state proof
+	bz, err = cdc.MarshalInterface(upgradedConsState)
+	if err != nil {
+		return errorsmod.Wrapf(clienttypes.ErrInvalidConsensus, "could not marshal consensus state: %v", err)
+	}
+
+	var proofConsStateMerkle ethdb.Database
+	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
+	// function as it will assert that all the leaves belonging to the specified root are present.
+	if len(cs.Proof) > 0 {
+		proofConsStateMerkle = memorydb.New()
+		defer proofConsStateMerkle.Close()
+		for _, proofVal := range cs.Proof {
+			proofKey := crypto.Keccak256(proofVal)
+			if err := proofConsStateMerkle.Put(proofKey, proofVal); err != nil {
+				return err
+			}
+		}
+	} else {
+		return fmt.Errorf("client path is invalid")
+	}
+
+	keyConsStateMerkle := MerkleKey{Key: cs.UpgradePath}
+
+	verifyValueConsStateMerkle, err := trie.VerifyProof(
+		common.BytesToHash(consState.StorageRoot),
+		[]byte(keyConsStateMerkle.Key),
+		proofConsStateMerkle,
+	)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(verifyValueConsStateMerkle, bz) {
+		return errorsmod.Wrapf(err, "client state proof failed. Path: %s", keyConsStateMerkle)
+	}
+
+	// Construct new client state and consensus state
+	// Relayer chosen client parameters are ignored.
+	// All chain-chosen parameters come from committed client, all client-chosen parameters
+	// come from current client.
+	newClientState := NewClientState(
+		avaUpgradeClient.ChainId,
+		cs.TrustLevel,
+		cs.TrustingPeriod,
+		cs.MaxClockDrift,
+		avaUpgradeClient.LatestHeight,
+		avaUpgradeClient.UpgradePath,
+		avaUpgradeClient.Proof,
+	)
+
+	if err := newClientState.Validate(); err != nil {
+		return errorsmod.Wrap(err, "updated client state failed basic validation")
+	}
+
+	// The new consensus state is merely used as a trusted kernel against which headers on the new
+	// chain can be verified. The root is just a stand-in sentinel value as it cannot be known in advance, thus no proof verification will pass.
+	// The timestamp and the NextValidatorsHash of the consensus state is the blocktime and NextValidatorsHash
+	// of the last block committed by the old chain. This will allow the first block of the new chain to be verified against
+	// the last validators of the old chain so long as it is submitted within the TrustingPeriod of this client.
+	// NOTE: We do not set processed time for this consensus state since this consensus state should not be used for packet verification
+	// as the root is empty. The next consensus state submitted using update will be usable for packet-verification.
+	newConsState := NewConsensusState(
+		avaUpgradeConsState.Timestamp,
+		avaUpgradeConsState.Vdrs,
+		avaUpgradeConsState.StorageRoot,
+		avaUpgradeConsState.SignedStorageRoot,
+		avaUpgradeConsState.ValidatorSet,
+		avaUpgradeConsState.SignedValidatorSet,
+		avaUpgradeConsState.SignersInput,
+	)
+
+	setClientState(clientStore, cdc, newClientState)
+	SetConsensusState(clientStore, cdc, newConsState, newClientState.LatestHeight)
+	setConsensusMetadata(ctx, clientStore, avaUpgradeClient.LatestHeight)
+
+	return nil
 }
 
 // VerifyMembership is a generic proof verification method which verifies a proof of the existence of a value at a given CommitmentPath at the specified height.

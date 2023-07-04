@@ -1,6 +1,8 @@
 package avalanche
 
 import (
+	time "time"
+
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
 
@@ -11,10 +13,19 @@ func (h Header) ClientType() string {
 	return exported.Avalanche
 }
 
-// ValidateBasic calls the SignedHeader ValidateBasic function and checks
-// that validatorsets are not nil.
-// NOTE: TrustedHeight and TrustedValidators may be empty when creating client
-// with MsgCreateClient
+func (h Header) GetHeight() exported.Height {
+	//TODO Implement me
+	panic("implement me")
+	// revision := clienttypes.ParseChainID(h.Header.ChainID)
+	// return clienttypes.NewHeight(revision, uint64(h.Header.Height))
+}
+
 func (h Header) ValidateBasic() error {
 	return nil
+}
+
+func (h Header) GetTime() time.Time {
+	//TODO Implement me
+	panic("implement me")
+	// return h.Header.Time
 }
