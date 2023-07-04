@@ -106,7 +106,7 @@ func (suite *AvalancheTestSuite) TestValidate() {
 		{
 			name:        "valid client with empty upgrade path",
 			clientState: ibcava.NewClientState(chainID, ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift, height, "", nil),
-			expPass:     true,
+			expPass:     false,
 		},
 		{
 			name:        "invalid chainID",

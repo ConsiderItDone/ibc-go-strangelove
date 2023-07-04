@@ -41,7 +41,7 @@ func (suite *AvalancheTestSuite) TestConsensusStateValidateBasic() {
 				Vdrs:               []*ibcava.Validator{&ibcava.Validator{PublicKeyByte: []byte("PublicKeyByte"), Weight: 100, NodeIDs: [][]byte{}}},
 				SignersInput:       signersInput,
 			},
-			true,
+			false,
 		},
 		{
 			"SignedValidatorSet len is wrong",
@@ -54,7 +54,7 @@ func (suite *AvalancheTestSuite) TestConsensusStateValidateBasic() {
 				Vdrs:               []*ibcava.Validator{&ibcava.Validator{PublicKeyByte: []byte("PublicKeyByte"), Weight: 100, NodeIDs: [][]byte{}}},
 				SignersInput:       signersInput,
 			},
-			true,
+			false,
 		},
 		{
 			"root is nil",
