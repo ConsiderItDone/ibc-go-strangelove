@@ -356,19 +356,19 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 				validatorSet = append(validatorSet, data...)
 			}
 
-			// unsignedMsgValidator, _ := warp.NewUnsignedMessage(
-			// 	sourceChainID,
-			// 	ids.Empty,
-			// 	validatorSet,
-			// )
-			// unsignedMsgValidatorBytes := unsignedMsgValidator.Bytes()
+			unsignedMsgValidator, _ := warp.NewUnsignedMessage(
+				sourceChainID,
+				ids.Empty,
+				validatorSet,
+			)
+			unsignedMsgValidatorBytes := unsignedMsgValidator.Bytes()
 
-			// vdr1Sig2 := bls.Sign(testVdrs[1].sk, unsignedMsgValidatorBytes)
-			// vdr2Sig2 := bls.Sign(testVdrs[2].sk, unsignedMsgValidatorBytes)
-			// aggSig2, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig2, vdr2Sig2})
-			// suite.NoError(err)
-			// signedValidatorSet := [bls.SignatureLen]byte{}
-			// copy(signedValidatorSet[:], bls.SignatureToBytes(aggSig2))
+			vdr1Sig2 := bls.Sign(testVdrs[1].sk, unsignedMsgValidatorBytes)
+			vdr2Sig2 := bls.Sign(testVdrs[2].sk, unsignedMsgValidatorBytes)
+			aggSig2, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig2, vdr2Sig2})
+			suite.NoError(err)
+			signedValidatorSet := [bls.SignatureLen]byte{}
+			copy(signedValidatorSet[:], bls.SignatureToBytes(aggSig2))
 
 			proofHeight = suite.chainB.LastHeader.GetTrustedHeight()
 
@@ -390,7 +390,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 				storageRoot,
 				signedStorageRoot[:],
 				validatorSet,
-				[]byte("signedValidatorSet[:]"),
+				signedValidatorSet[:],
 				signersInput,
 			), proofHeight)
 

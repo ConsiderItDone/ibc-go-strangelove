@@ -535,19 +535,19 @@ func (cs ClientState) VerifyMembership(
 		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
 	}
 
-	// vdrs, totalWeigth, err := ValidateValidatorSet(consensusState.Vdrs)
-	// if err != nil {
-	// 	return err
-	// }
+	vdrs, totalWeigth, err := ValidateValidatorSet(consensusState.Vdrs)
+	if err != nil {
+		return err
+	}
 
-	// err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-	// if err != nil {
-	// 	return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
-	// }
-	// err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-	// if err != nil {
-	// 	return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
-	// }
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
+	}
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	if err != nil {
+		return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
+	}
 
 	var proofEx ethdb.Database
 	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
