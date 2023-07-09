@@ -160,7 +160,6 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 			return errorsmod.Wrapf(ErrProcessedTimeNotFound, "processed time not found for height: %s", proofHeight)
 		}
 
-		// TODO
 		currentTimestamp := uint64(ctx.BlockTime().UnixNano())
 		validTime := processedTime + delayTimePeriod
 
@@ -192,18 +191,6 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 	return nil
 }
 
-func (cs *ClientState) VerifyClientMessage(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) error {
-	// switch msg := clientMsg.(type) {
-	// case *Header:
-	// 	return cs.verifyHeader(ctx, clientStore, cdc, msg)
-	// case *Misbehaviour:
-	// 	return cs.verifyMisbehaviour(ctx, clientStore, cdc, msg)
-	// default:
-	// 	return clienttypes.ErrInvalidClientType
-	// }
-	//TODO implement me
-	panic("implement me")
-}
 
 func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) {
 	cs.FrozenHeight = FrozenHeight
@@ -220,18 +207,18 @@ func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clien
 	cs.pruneOldestConsensusState(ctx, cdc, clientStore)
 
 	// check for duplicate update
-	if consensusState, _ := GetConsensusState(clientStore, cdc, header.GetHeight()); consensusState != nil {
+	if consensusState, _ := GetConsensusState(clientStore, cdc, header.SubnetHeader.Height); consensusState != nil {
 		// perform no-op
-		return []exported.Height{header.GetHeight()}
+		return []exported.Height{header.SubnetHeader.Height}
 	}
 
-	height := header.GetHeight().(clienttypes.Height)
+	height := header.SubnetHeader.Height
 	if height.GT(cs.LatestHeight) {
-		cs.LatestHeight = height
+		cs.LatestHeight = *height
 	}
 
 	consensusState := &ConsensusState{
-		Timestamp:          header.GetTime(),
+		Timestamp:          header.SubnetHeader.Timestamp,
 		StorageRoot:        header.StorageRoot,
 		SignedStorageRoot:  header.SignedStorageRoot,
 		ValidatorSet:       header.ValidatorSet,
@@ -242,8 +229,8 @@ func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clien
 
 	// set client state, consensus state and asssociated metadata
 	setClientState(clientStore, cdc, cs)
-	SetConsensusState(clientStore, cdc, consensusState, header.GetHeight())
-	setConsensusMetadata(ctx, clientStore, header.GetHeight())
+	SetConsensusState(clientStore, cdc, consensusState, header.SubnetHeader.Height)
+	setConsensusMetadata(ctx, clientStore, header.SubnetHeader.Height)
 
 	return []exported.Height{height}
 }
@@ -535,7 +522,7 @@ func (cs ClientState) VerifyMembership(
 		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
 	}
 
-	vdrs, totalWeigth, err := ValidateValidatorSet(consensusState.Vdrs)
+	vdrs, totalWeigth, err := ValidateValidatorSet(ctx, consensusState.Vdrs)
 	if err != nil {
 		return err
 	}

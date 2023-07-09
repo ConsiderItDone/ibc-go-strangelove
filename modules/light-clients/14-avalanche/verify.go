@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/subnet-evm/ethdb/memorydb"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func Verify(
@@ -80,6 +81,7 @@ func Verify(
 }
 
 func ValidateValidatorSet(
+	ctx sdk.Context,
 	vdrSet []*Validator,
 ) ([]*warp.Validator, uint64, error) {
 	var (
@@ -88,6 +90,11 @@ func ValidateValidatorSet(
 		err         error
 	)
 	for i, vdr := range vdrSet {
+		currentTimestamp := uint64(ctx.BlockTime().UnixNano())
+		if currentTimestamp > uint64(vdr.EndTime.UnixNano()) {
+			continue
+		}
+
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err)

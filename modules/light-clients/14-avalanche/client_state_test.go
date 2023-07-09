@@ -19,7 +19,6 @@ import (
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
-	avalanche "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 	ibcava "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 	ibctesting "github.com/cosmos/ibc-go/v7/testing"
 	"github.com/ethereum/go-ethereum/common"
@@ -295,21 +294,24 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			}
 			utils.Sort(testVdrs)
 
-			vdrs := []*avalanche.Validator{
+			vdrs := []*ibcava.Validator{
 				{
 					NodeIDs:       [][]byte{testVdrs[0].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[0].vdr.PublicKey),
 					Weight:        testVdrs[0].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 				{
 					NodeIDs:       [][]byte{testVdrs[1].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[1].vdr.PublicKey),
 					Weight:        testVdrs[1].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 				{
 					NodeIDs:       [][]byte{testVdrs[2].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[2].vdr.PublicKey),
 					Weight:        testVdrs[2].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 			}
 
@@ -325,11 +327,11 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			storageRoot = trieEx.Hash().Bytes()
 			prover := makeProvers(trieEx)
 			_, kv := pick(vals)
-			proofOut, _ := avalanche.IterateVals(prover(kv.k))
+			proofOut, _ := ibcava.IterateVals(prover(kv.k))
 			proof = proofOut
 
 			value = kv.v
-			path = &avalanche.MerkleKey{Key: string(kv.k)}
+			path = &ibcava.MerkleKey{Key: string(kv.k)}
 
 			signers := set.NewBits()
 			signers.Add(1)
@@ -384,7 +386,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			ctx := suite.chainA.GetContext()
 			store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, testingpath.EndpointA.ClientID)
 
-			avalanche.SetConsensusState(store, marshaler, avalanche.NewConsensusState(
+			ibcava.SetConsensusState(store, marshaler, ibcava.NewConsensusState(
 				time.Now(),
 				vdrs,
 				storageRoot,
@@ -537,21 +539,24 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			}
 			utils.Sort(testVdrs)
 
-			vdrs := []*avalanche.Validator{
+			vdrs := []*ibcava.Validator{
 				{
 					NodeIDs:       [][]byte{testVdrs[0].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[0].vdr.PublicKey),
 					Weight:        testVdrs[0].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 				{
 					NodeIDs:       [][]byte{testVdrs[1].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[1].vdr.PublicKey),
 					Weight:        testVdrs[1].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 				{
 					NodeIDs:       [][]byte{testVdrs[2].nodeID.Bytes()},
 					PublicKeyByte: bls.PublicKeyToBytes(testVdrs[2].vdr.PublicKey),
 					Weight:        testVdrs[2].vdr.Weight,
+					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 			}
 
@@ -572,9 +577,9 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			key := "no key"
 			trieEx.Prove([]byte(key), 0, proofOut)
 
-			proof, _ = avalanche.IterateVals(proofOut)
+			proof, _ = ibcava.IterateVals(proofOut)
 
-			path = &avalanche.MerkleKey{Key: key}
+			path = &ibcava.MerkleKey{Key: key}
 
 			signers := set.NewBits()
 			signers.Add(1)
@@ -629,7 +634,7 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			ctx := suite.chainA.GetContext()
 			store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, testingpath.EndpointA.ClientID)
 
-			avalanche.SetConsensusState(store, marshaler, avalanche.NewConsensusState(
+			ibcava.SetConsensusState(store, marshaler, ibcava.NewConsensusState(
 				time.Now(),
 				vdrs,
 				storageRoot,

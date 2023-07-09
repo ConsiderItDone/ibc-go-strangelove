@@ -79,23 +79,33 @@ message Misbehaviour {
 }
 
 message Header {
-  ibc.core.client.v1.Height trusted_height = 1 [(gogoproto.nullable) = false];
+  SubnetHeader subnet_header = 1;
+  SubnetHeader pchain_header = 2;
 
-  
-  bytes storage_root         = 2;
-  bytes signed_storage_root  = 3;
-  bytes validator_set        = 4;
-  bytes signed_validator_set = 5;
-  repeated Validator vdrs          = 6;
-  bytes              signers_input = 8;
+  ibc.core.client.v1.Height subnet_trusted_height = 3;
+  ibc.core.client.v1.Height pchain_trusted_height = 4;
+
+  bytes              storage_root         = 5;
+  bytes              signed_storage_root  = 6;
+  bytes              validator_set        = 7;
+  bytes              signed_validator_set = 8;
+  repeated Validator vdrs                 = 9;
+  bytes              signers_input        = 10;
+}
+
+message SubnetHeader {
+  ibc.core.client.v1.Height height     = 1;
+  google.protobuf.Timestamp timestamp  = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  bytes                     block_hash = 3;
 }
 
 message Validator {
-  bytes          public_key_byte = 1;
-  uint64         weight          = 3;
-  repeated bytes nodeIDs         = 4;
+  bytes                     public_key_byte = 1;
+  uint64                    weight          = 3;
+  repeated bytes            nodeIDs         = 4;
+  google.protobuf.Timestamp end_time        = 5 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
 }
 
 message MerkleKey {
-  string         key          = 1;
+  string key = 1;
 }

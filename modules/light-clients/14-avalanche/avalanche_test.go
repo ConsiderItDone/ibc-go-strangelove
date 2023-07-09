@@ -67,12 +67,6 @@ func (suite *AvalancheTestSuite) SetupTest() {
 	suite.clientTime = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	// Header time is intended to be time for any new header used for updates
 	suite.headerTime = time.Date(2020, 1, 2, 0, 0, 0, 0, time.UTC)
-
-	heightMinus1 := clienttypes.NewHeight(0, height.RevisionHeight-1)
-
-	suite.header = &ibcava.Header{
-		TrustedHeight: heightMinus1,
-	}
 }
 
 func TestAvalancheTestSuite(t *testing.T) {
