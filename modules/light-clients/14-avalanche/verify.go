@@ -52,21 +52,21 @@ func Verify(
 		return err
 	}
 
-	fmt.Println("")
-	fmt.Printf("signature: %064x \n", signature)
-	fmt.Printf("data: %064x \n", data)
+	// fmt.Println("")
+	// fmt.Printf("signature: %064x \n", signature)
+	// fmt.Printf("data: %064x \n", data)
 	// Parse the aggregate signature
 	aggSig, err := bls.SignatureFromBytes(signature[:])
 	if err != nil {
 		return fmt.Errorf("failed to parse signature: %v", err)
 	}
-	for i, vdr := range signers {
-		fmt.Printf("vdr number: %d \n", i)
-		fmt.Printf("vdr.NodeIDs: %064x \n", vdr.NodeIDs)
-		fmt.Printf("vdr.PublicKeyBytes: %064x \n", vdr.PublicKeyBytes)
-		fmt.Printf("vdr.Weight: %d \n", vdr.Weight)
-	}
-	fmt.Println("")
+	// for i, vdr := range signers {
+		// fmt.Printf("vdr number: %d \n", i)
+		// fmt.Printf("vdr.NodeIDs: %064x \n", vdr.NodeIDs)
+		// fmt.Printf("vdr.PublicKeyBytes: %064x \n", vdr.PublicKeyBytes)
+		// fmt.Printf("vdr.Weight: %d \n", vdr.Weight)
+	// }
+	// fmt.Println("")
 	// Create the aggregate public key
 	aggPubKey, err := warp.AggregatePublicKeys(signers)
 	if err != nil {
@@ -74,7 +74,6 @@ func Verify(
 	}
 
 	if !bls.Verify(aggPubKey, aggSig, data) {
-		fmt.Println("PANIC ")
 		return fmt.Errorf("signature is invalid (IT IS ERROR)")
 	}
 	return nil

@@ -148,16 +148,5 @@ func checkMisbehaviourHeader(ctx sdk.Context,
 	if clienttypes.IsRevisionFormat(chainID) {
 		chainID, _ = clienttypes.SetRevisionNumber(chainID, header.SubnetHeader.Height.RevisionNumber)
 	}
-
-	//TODO
-
-	// - ValidatorSet must have TrustLevel similarity with trusted FromValidatorSet
-	// - ValidatorSets on both headers are valid given the last trusted ValidatorSet
-
-	// if err := tmTrustedValset.VerifyCommitLightTrusting(
-	// 	chainID, tmCommit, clientState.TrustLevel.ToTendermint(),
-	// ); err != nil {
-	// 	return errorsmod.Wrapf(clienttypes.ErrInvalidMisbehaviour, "validator set in header has too much change from trusted validator set: %v", err)
-	// }
 	return nil
 }

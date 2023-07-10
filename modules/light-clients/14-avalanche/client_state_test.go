@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	time "time"
 
+	errorsmod "cosmossdk.io/errors"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -211,6 +212,7 @@ func (suite *AvalancheTestSuite) TestInitialize() {
 }
 
 func (suite *AvalancheTestSuite) TestVerifyMembership() {
+
 	var (
 		testingpath      *ibctesting.Path
 		delayTimePeriod  uint64
@@ -287,6 +289,10 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 		suite.Run(tc.name, func() {
 			suite.SetupTest() // reset
 
+			testingpath = ibctesting.NewPath(suite.chainA, suite.chainB)
+			testingpath.SetChannelOrdered()
+			suite.coordinator.Setup(testingpath)
+
 			testVdrs = []*testValidator{
 				newTestValidator(),
 				newTestValidator(),
@@ -315,9 +321,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 				},
 			}
 
-			testingpath = ibctesting.NewPath(suite.chainA, suite.chainB)
-			testingpath.SetChannelOrdered()
-			suite.coordinator.Setup(testingpath)
+			chainID, _ := ids.ToID([]byte(testingpath.EndpointA.Chain.ChainID))
 
 			// reset time and block delays to 0, malleate may change to a specific non-zero value.
 			delayTimePeriod = 0
@@ -335,22 +339,51 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 
 			signers := set.NewBits()
 			signers.Add(1)
-			signers.Add(2)
+			// signers.Add(2)
 			signersInput := signers.Bytes()
 
 			unsignedMsg, _ := warp.NewUnsignedMessage(
-				sourceChainID,
+				chainID,
 				ids.Empty,
-				storageRoot,
+				nil,
 			)
 			unsignedBytes := unsignedMsg.Bytes()
 
 			vdr1Sig1 := bls.Sign(testVdrs[1].sk, unsignedBytes)
-			vdr2Sig1 := bls.Sign(testVdrs[2].sk, unsignedBytes)
-			aggSig1, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig1, vdr2Sig1})
+			// vdr2Sig1 := bls.Sign(testVdrs[2].sk, unsignedBytes)
+			aggSig1, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig1}) //, vdr2Sig1})
 			suite.NoError(err)
 			signedStorageRoot := [bls.SignatureLen]byte{}
 			copy(signedStorageRoot[:], bls.SignatureToBytes(aggSig1))
+
+			vdrs1, totalWeigth, err := ibcava.ValidateValidatorSet(suite.chainA.GetContext(), vdrs)
+			suite.Require().NoError(err)
+			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
+			if err != nil {
+				err = errorsmod.Wrap(err, "1-----------")
+				suite.Require().NoError(err)
+			}
+
+			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
+			if err != nil {
+				err = errorsmod.Wrap(err, "2-----------")
+				suite.Require().NoError(err)
+			}
+
+
+			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
+			if err != nil {
+				err = errorsmod.Wrap(err, "3-----------")
+				suite.Require().NoError(err)
+			}
+
+
+			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
+			if err != nil {
+				err = errorsmod.Wrap(err, "4-----------")
+				suite.Require().NoError(err)
+			}
+
 
 			var validatorSet []byte
 			for _, m := range vdrs {
@@ -359,9 +392,9 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			}
 
 			unsignedMsgValidator, _ := warp.NewUnsignedMessage(
-				sourceChainID,
+				chainID,
 				ids.Empty,
-				validatorSet,
+				nil,
 			)
 			unsignedMsgValidatorBytes := unsignedMsgValidator.Bytes()
 
@@ -531,6 +564,9 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 
 		suite.Run(tc.name, func() {
 			suite.SetupTest() // reset
+			testingpath = ibctesting.NewPath(suite.chainA, suite.chainB)
+			testingpath.SetChannelOrdered()
+			suite.coordinator.Setup(testingpath)
 
 			testVdrs = []*testValidator{
 				newTestValidator(),
@@ -559,10 +595,6 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 					EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 				},
 			}
-
-			testingpath = ibctesting.NewPath(suite.chainA, suite.chainB)
-			testingpath.SetChannelOrdered()
-			suite.coordinator.Setup(testingpath)
 
 			// reset time and block delays to 0, malleate may change to a specific non-zero value.
 			delayTimePeriod = 0

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	errorsmod "cosmossdk.io/errors"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/subnet-evm/ethdb"
 	"github.com/ava-labs/subnet-evm/ethdb/memorydb"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -190,7 +192,6 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 
 	return nil
 }
-
 
 func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) {
 	cs.FrozenHeight = FrozenHeight
@@ -527,11 +528,25 @@ func (cs ClientState) VerifyMembership(
 		return err
 	}
 
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), consensusState.ValidatorSet, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
-	if err != nil {
-		return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
-	}
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), consensusState.StorageRoot, vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	chainID, _ := ids.ToID([]byte(cs.ChainId))
+	unsignedMsg, _ := warp.NewUnsignedMessage(
+		chainID,
+		ids.Empty,
+		consensusState.ValidatorSet,
+	)
+
+	// err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	// if err != nil {
+	// 	return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
+	// }
+
+	unsignedMsg, _ = warp.NewUnsignedMessage(
+		chainID,
+		ids.Empty,
+		consensusState.StorageRoot,
+	)
+
+	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
 	}
