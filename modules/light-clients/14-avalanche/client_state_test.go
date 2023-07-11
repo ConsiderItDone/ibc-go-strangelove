@@ -4,6 +4,7 @@ import (
 	"bytes"
 	crand "crypto/rand"
 	"fmt"
+	"reflect"
 	time "time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -357,11 +358,16 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			copy(signedStorageRoot[:], bls.SignatureToBytes(aggSig1))
 
 			vdrs1, totalWeigth, err := ibcava.ValidateValidatorSet(suite.chainA.GetContext(), vdrs)
+
 			suite.Require().NoError(err)
 			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
 			if err != nil {
 				// err = errorsmod.Wrap(err, "1-----------")
 				// suite.Require().NoError(err)
+
+				if !reflect.DeepEqual(vdrs1[1].PublicKeyBytes, testVdrs[1].vdr.PublicKeyBytes) {
+					fmt.Println("PublicKeyBytes not equal")
+				}
 				fmt.Println("1 err")
 			}
 			fmt.Println("1 pass")
