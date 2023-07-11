@@ -52,11 +52,18 @@ func (cs *ClientState) verifyHeader(
 		)
 	}
 
+	if header.PchainHeader.Height.RevisionNumber != header.PchainTrustedHeight.RevisionNumber {
+		return errorsmod.Wrapf(
+			ErrInvalidHeaderHeight,
+			"header height revision %d does not match trusted header revision %d",
+			header.PchainHeader.Height.RevisionNumber, header.PchainTrustedHeight.RevisionNumber,
+		)
+	}
 	// assert header height is newer than consensus state
-	if header.SubnetHeader.Height.LTE(header.SubnetTrustedHeight) {
+	if header.PchainHeader.Height.LTE(header.PchainTrustedHeight) {
 		return errorsmod.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"header height ≤ consensus state height (%s ≤ %s)", header.SubnetHeader.Height, header.SubnetTrustedHeight,
+			"header height ≤ consensus state height (%s ≤ %s)", header.PchainHeader.Height, header.PchainTrustedHeight,
 		)
 	}
 
@@ -80,9 +87,5 @@ func (cs *ClientState) verifyHeader(
 			return errorsmod.Wrap(err, "failed to verify header")
 		}
 	}
-
-	if err != nil {
-	}
-
 	return nil
 }
