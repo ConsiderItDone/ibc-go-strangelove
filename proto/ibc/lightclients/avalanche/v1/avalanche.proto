@@ -72,8 +72,6 @@ message Fraction {
 message Misbehaviour {
   option (gogoproto.goproto_getters) = false;
 
-  // ClientID is deprecated
-  string client_id = 1 [deprecated = true];
   Header header_1  = 2 [(gogoproto.customname) = "Header1"];
   Header header_2  = 3 [(gogoproto.customname) = "Header2"];
 }

@@ -4,11 +4,8 @@ import (
 	"time"
 
 	errorsmod "cosmossdk.io/errors"
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	tmtypes "github.com/cometbft/cometbft/types"
 
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
-	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
 
@@ -18,11 +15,10 @@ var _ exported.ClientMessage = &Misbehaviour{}
 var FrozenHeight = clienttypes.NewHeight(0, 1)
 
 // NewMisbehaviour creates a new Misbehaviour instance.
-func NewMisbehaviour(clientID string, header1, header2 *Header) *Misbehaviour {
+func NewMisbehaviour(header1, header2 *Header) *Misbehaviour {
 	return &Misbehaviour{
-		ClientId: clientID,
-		Header1:  header1,
-		Header2:  header2,
+		Header1: header1,
+		Header2: header2,
 	}
 }
 
@@ -57,10 +53,6 @@ func (misbehaviour Misbehaviour) ValidateBasic() error {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "misbehaviour Header2 cannot have zero revision height")
 	}
 
-	if err := host.ClientIdentifierValidator(misbehaviour.ClientId); err != nil {
-		return errorsmod.Wrap(err, "misbehaviour client ID is invalid")
-	}
-
 	// ValidateBasic on both validators
 	if err := misbehaviour.Header1.ValidateBasic(); err != nil {
 		return errorsmod.Wrap(
@@ -77,24 +69,6 @@ func (misbehaviour Misbehaviour) ValidateBasic() error {
 	// Ensure that Height1 is greater than or equal to Height2
 	if misbehaviour.Header1.SubnetHeader.Height.LT(misbehaviour.Header2.SubnetHeader.Height) {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidMisbehaviour, "Header1 height is less than Header2 height (%s < %s)", misbehaviour.Header1.SubnetHeader.Height, misbehaviour.Header2.SubnetHeader.Height)
-	}
-
-	return nil
-}
-
-// validCommit checks if the given commit is a valid commit from the passed-in validatorset
-func validCommit(chainID string, blockID tmtypes.BlockID, commit *tmproto.Commit, valSet *tmproto.ValidatorSet) (err error) {
-	tmCommit, err := tmtypes.CommitFromProto(commit)
-	if err != nil {
-		return errorsmod.Wrap(err, "commit is not tendermint commit type")
-	}
-	tmValset, err := tmtypes.ValidatorSetFromProto(valSet)
-	if err != nil {
-		return errorsmod.Wrap(err, "validator set is not tendermint validator set type")
-	}
-
-	if err := tmValset.VerifyCommitLight(chainID, blockID, tmCommit.Height, tmCommit); err != nil {
-		return errorsmod.Wrap(clienttypes.ErrInvalidMisbehaviour, "validator set did not commit to header")
 	}
 
 	return nil
