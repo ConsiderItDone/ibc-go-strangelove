@@ -888,193 +888,6 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 	}
 }
 
-// func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
-// 	var (
-// 		path          *ibctesting.Path
-// 		clientMessage exported.ClientMessage
-// 	)
-
-// 	testCases := []struct {
-// 		name     string
-// 		malleate func()
-// 		expPass  bool
-// 	}{
-// 		{
-// 			"valid update no misbehaviour",
-// 			func() {},
-// 			false,
-// 		},
-// 		{
-// 			"consensus state already exists, already updated",
-// 			func() {
-// 				header, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-
-// 				consensusState := &ibctm.ConsensusState{
-// 					Timestamp:          header.GetTime(),
-// 					Root:               commitmenttypes.NewMerkleRoot(header.Header.GetAppHash()),
-// 					NextValidatorsHash: header.Header.NextValidatorsHash,
-// 				}
-
-// 				tmHeader, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-// 				suite.chainA.App.GetIBCKeeper().ClientKeeper.SetClientConsensusState(suite.chainA.GetContext(), path.EndpointA.ClientID, tmHeader.GetHeight(), consensusState)
-// 			},
-// 			false,
-// 		},
-// 		{
-// 			"invalid fork misbehaviour: identical headers", func() {
-// 				trustedHeight := path.EndpointA.GetClientState().GetLatestHeight().(clienttypes.Height)
-
-// 				trustedVals, found := suite.chainB.GetValsAtHeight(int64(trustedHeight.RevisionHeight) + 1)
-// 				suite.Require().True(found)
-
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				height := path.EndpointA.GetClientState().GetLatestHeight().(clienttypes.Height)
-
-// 				misbehaviourHeader := suite.chainB.CreateTMClientHeader(suite.chainB.ChainID, int64(height.RevisionHeight), trustedHeight, suite.chainB.CurrentHeader.Time.Add(time.Minute), suite.chainB.Vals, suite.chainB.NextVals, trustedVals, suite.chainB.Signers)
-// 				clientMessage = &ibctm.Misbehaviour{
-// 					Header1: misbehaviourHeader,
-// 					Header2: misbehaviourHeader,
-// 				}
-// 			}, false,
-// 		},
-// 		{
-// 			"invalid time misbehaviour: monotonically increasing time", func() {
-// 				trustedHeight := path.EndpointA.GetClientState().GetLatestHeight().(clienttypes.Height)
-
-// 				trustedVals, found := suite.chainB.GetValsAtHeight(int64(trustedHeight.RevisionHeight) + 1)
-// 				suite.Require().True(found)
-
-// 				clientMessage = &ibctm.Misbehaviour{
-// 					Header1: suite.chainB.CreateTMClientHeader(suite.chainB.ChainID, suite.chainB.CurrentHeader.Height+3, trustedHeight, suite.chainB.CurrentHeader.Time.Add(time.Minute), suite.chainB.Vals, suite.chainB.NextVals, trustedVals, suite.chainB.Signers),
-// 					Header2: suite.chainB.CreateTMClientHeader(suite.chainB.ChainID, suite.chainB.CurrentHeader.Height, trustedHeight, suite.chainB.CurrentHeader.Time, suite.chainB.Vals, suite.chainB.NextVals, trustedVals, suite.chainB.Signers),
-// 				}
-// 			}, false,
-// 		},
-// 		{
-// 			"consensus state already exists, app hash mismatch",
-// 			func() {
-// 				header, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-
-// 				consensusState := &ibctm.ConsensusState{
-// 					Timestamp:          header.GetTime(),
-// 					Root:               commitmenttypes.NewMerkleRoot([]byte{}), // empty bytes
-// 					NextValidatorsHash: header.Header.NextValidatorsHash,
-// 				}
-
-// 				tmHeader, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-// 				suite.chainA.App.GetIBCKeeper().ClientKeeper.SetClientConsensusState(suite.chainA.GetContext(), path.EndpointA.ClientID, tmHeader.GetHeight(), consensusState)
-// 			},
-// 			true,
-// 		},
-// 		{
-// 			"previous consensus state exists and header time is before previous consensus state time",
-// 			func() {
-// 				header, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-
-// 				// offset header timestamp before previous consensus state timestamp
-// 				header.Header.Time = header.GetTime().Add(-time.Hour)
-// 			},
-// 			true,
-// 		},
-// 		{
-// 			"next consensus state exists and header time is after next consensus state time",
-// 			func() {
-// 				header, ok := clientMessage.(*ibctm.Header)
-// 				suite.Require().True(ok)
-
-// 				// commit block and update client, adding a new consensus state
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				// increase timestamp of current header
-// 				header.Header.Time = header.Header.Time.Add(time.Hour)
-// 			},
-// 			true,
-// 		},
-// 		{
-// 			"valid fork misbehaviour returns true",
-// 			func() {
-// 				header1, err := path.EndpointA.Chain.ConstructUpdateTMClientHeader(path.EndpointA.Counterparty.Chain, path.EndpointA.ClientID)
-// 				suite.Require().NoError(err)
-
-// 				// commit block and update client
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err = path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				header2, err := path.EndpointA.Chain.ConstructUpdateTMClientHeader(path.EndpointA.Counterparty.Chain, path.EndpointA.ClientID)
-// 				suite.Require().NoError(err)
-
-// 				// assign the same height, each header will have a different commit hash
-// 				header1.Header.Height = header2.Header.Height
-
-// 				clientMessage = &ibctm.Misbehaviour{
-// 					Header1:  header1,
-// 					Header2:  header2,
-// 					ClientId: path.EndpointA.ClientID,
-// 				}
-// 			},
-// 			true,
-// 		},
-// 		{
-// 			"valid time misbehaviour: not monotonically increasing time", func() {
-// 				trustedHeight := path.EndpointA.GetClientState().GetLatestHeight().(clienttypes.Height)
-
-// 				trustedVals, found := suite.chainB.GetValsAtHeight(int64(trustedHeight.RevisionHeight) + 1)
-// 				suite.Require().True(found)
-
-// 				clientMessage = &ibctm.Misbehaviour{
-// 					Header2: suite.chainB.CreateTMClientHeader(suite.chainB.ChainID, suite.chainB.CurrentHeader.Height+3, trustedHeight, suite.chainB.CurrentHeader.Time.Add(time.Minute), suite.chainB.Vals, suite.chainB.NextVals, trustedVals, suite.chainB.Signers),
-// 					Header1: suite.chainB.CreateTMClientHeader(suite.chainB.ChainID, suite.chainB.CurrentHeader.Height, trustedHeight, suite.chainB.CurrentHeader.Time, suite.chainB.Vals, suite.chainB.NextVals, trustedVals, suite.chainB.Signers),
-// 				}
-// 			}, true,
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		tc := tc
-// 		suite.Run(tc.name, func() {
-// 			// reset suite to create fresh application state
-// 			suite.SetupTest()
-// 			path = ibctesting.NewPath(suite.chainA, suite.chainB)
-
-// 			err := path.EndpointA.CreateClient()
-// 			suite.Require().NoError(err)
-
-// 			// ensure counterparty state is committed
-// 			suite.coordinator.CommitBlock(suite.chainB)
-// 			clientMessage, err = path.EndpointA.Chain.ConstructUpdateTMClientHeader(path.EndpointA.Counterparty.Chain, path.EndpointA.ClientID)
-// 			suite.Require().NoError(err)
-
-// 			tc.malleate()
-
-// 			clientState := path.EndpointA.GetClientState()
-// 			clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
-
-// 			foundMisbehaviour := clientState.CheckForMisbehaviour(
-// 				suite.chainA.GetContext(),
-// 				suite.chainA.App.AppCodec(),
-// 				clientStore, // pass in clientID prefixed clientStore
-// 				clientMessage,
-// 			)
-
-// 			if tc.expPass {
-// 				suite.Require().True(foundMisbehaviour)
-// 			} else {
-// 				suite.Require().False(foundMisbehaviour)
-// 			}
-// 		})
-// 	}
-// }
-
 func (suite *AvalancheTestSuite) TestUpdateStateOnMisbehaviour() {
 	var path *ibctesting.Path
 
@@ -1083,7 +896,6 @@ func (suite *AvalancheTestSuite) TestUpdateStateOnMisbehaviour() {
 
 	std.RegisterInterfaces(interfaceRegistry)
 	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
-
 
 	testCases := []struct {
 		name     string
@@ -1207,9 +1019,15 @@ func (suite *AvalancheTestSuite) TestUpdateState() {
 }
 
 func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler := codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
+
 	var (
 		substituteClientState exported.ClientState
-		substitutePath        *ibctesting.Path
 	)
 	testCases := []struct {
 		name     string
@@ -1222,14 +1040,10 @@ func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
 		},
 		{
 			"non-matching substitute", func() {
-				suite.coordinator.SetupClients(substitutePath)
-				substituteClientState, ok := suite.chainA.GetClientState(substitutePath.EndpointA.ClientID).(*ibcava.ClientState)
-				suite.Require().True(ok)
-				// change trusting period so that test should fail
-				substituteClientState.TrustingPeriod = time.Hour * 24 * 7
-
-				tmClientState := substituteClientState
-				tmClientState.ChainId += "different chain"
+				substituteClientState = ibcava.NewClientState(
+					"different chain",
+					ibcava.DefaultTrustLevel, time.Hour * 24 * 7, maxClockDrift,
+					suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
 			},
 		},
 	}
@@ -1240,21 +1054,39 @@ func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
 		suite.Run(tc.name, func() {
 			suite.SetupTest() // reset
 			subjectPath := ibctesting.NewPath(suite.chainA, suite.chainB)
-			substitutePath = ibctesting.NewPath(suite.chainA, suite.chainB)
+			substitutePath := ibctesting.NewPath(suite.chainA, suite.chainB)
 
 			suite.coordinator.SetupClients(subjectPath)
-			subjectClientState := suite.chainA.GetClientState(subjectPath.EndpointA.ClientID).(*ibcava.ClientState)
-
-			// expire subject client
-			suite.coordinator.IncrementTimeBy(subjectClientState.TrustingPeriod)
-			suite.coordinator.CommitBlock(suite.chainA, suite.chainB)
 
 			tc.malleate()
 
+			consensusState := ibcava.NewConsensusState(
+				suite.chainA.GetContext().BlockTime(),
+				[]*ibcava.Validator{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+			)
+
+			clientState := ibcava.NewClientState(
+				suite.chainA.ChainID,
+				ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+				suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
+
 			subjectClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), subjectPath.EndpointA.ClientID)
+
+			ibcava.SetConsensusState(subjectClientStore, marshaler, consensusState, height)
+
 			substituteClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), substitutePath.EndpointA.ClientID)
 
-			err := subjectClientState.CheckSubstituteAndUpdateState(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), subjectClientStore, substituteClientStore, substituteClientState)
+			ibcava.SetConsensusState(substituteClientStore, marshaler, consensusState, height)
+
+			ibcava.SetProcessedHeight(substituteClientStore, height, height)
+			ibcava.SetProcessedTime(substituteClientStore, height, 34354532)
+
+			err := clientState.CheckSubstituteAndUpdateState(suite.chainA.GetContext(), marshaler, subjectClientStore, substituteClientStore, substituteClientState)
 			suite.Require().Error(err)
 		})
 	}
