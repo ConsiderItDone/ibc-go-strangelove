@@ -56,6 +56,10 @@ func (cs ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCode
 			blockHashID1 := msg.Header1.SubnetHeader.BlockHash
 			blockHashID2 := msg.Header2.SubnetHeader.BlockHash
 
+			if !msg.Header1.PchainHeader.Height.EQ(msg.Header2.PchainHeader.Height) {
+				return true
+			}
+
 			// Ensure that Commit Hashes are different
 			if !bytes.Equal(blockHashID1, blockHashID2) {
 				return true

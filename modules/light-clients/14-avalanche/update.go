@@ -1,6 +1,9 @@
 package avalanche
 
 import (
+	"fmt"
+	"reflect"
+
 	errorsmod "cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -16,7 +19,11 @@ func (cs *ClientState) VerifyClientMessage(
 ) error {
 	switch msg := clientMsg.(type) {
 	case *Header:
-		return cs.verifyHeader(ctx, clientStore, cdc, msg)
+		err := cs.verifyHeader(ctx, clientStore, cdc, msg)
+		if err != nil {
+			return err
+		}
+		return nil
 	case *Misbehaviour:
 		return cs.verifyMisbehaviour(ctx, clientStore, cdc, msg)
 	default:
@@ -60,10 +67,10 @@ func (cs *ClientState) verifyHeader(
 		)
 	}
 	// assert header height is newer than consensus state
-	if header.PchainHeader.Height.LTE(header.PchainTrustedHeight) {
+	if header.PchainHeader.Height.LT(*header.PchainTrustedHeight) {
 		return errorsmod.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"header height ≤ consensus state height (%s ≤ %s)", header.PchainHeader.Height, header.PchainTrustedHeight,
+			"header height ≤ consensus state height (%s < %s)", header.PchainHeader.Height, header.PchainTrustedHeight,
 		)
 	}
 
@@ -76,15 +83,16 @@ func (cs *ClientState) verifyHeader(
 		return errorsmod.Wrap(err, "failed to verify header")
 	}
 	if headerTotalWeight != consensusTotalWeight {
-		return errorsmod.Wrap(err, "failed to verify header")
+		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 	}
 
 	if len(headerUniqVdrs) != len(consensusUniqVdrs) {
-		return errorsmod.Wrap(err, "failed to verify header")
+		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 	}
+	fmt.Println("New case ")
 	for i := range headerUniqVdrs {
-		if headerUniqVdrs[i] != consensusUniqVdrs[i] {
-			return errorsmod.Wrap(err, "failed to verify header")
+		if !reflect.DeepEqual(headerUniqVdrs[i].PublicKeyBytes, consensusUniqVdrs[i].PublicKeyBytes) {
+			return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 		}
 	}
 	return nil

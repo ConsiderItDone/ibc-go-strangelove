@@ -18,6 +18,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	cosmostypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/std"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
@@ -740,23 +741,29 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 		header *ibcava.Header
 	)
 
+	testVdrs = []*testValidator{
+		newTestValidator(),
+		newTestValidator(),
+		newTestValidator(),
+	}
+
 	vdrs := []*ibcava.Validator{
-		&ibcava.Validator{
-			PublicKeyByte: []byte("PublicKeyByte"),
-			Weight:        100,
-			NodeIDs:       [][]byte{},
+		{
+			NodeIDs:       [][]byte{testVdrs[0].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[0].vdr.PublicKey),
+			Weight:        testVdrs[0].vdr.Weight,
 			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 		},
-		&ibcava.Validator{
-			PublicKeyByte: []byte("PublicKeyByte"),
-			Weight:        100,
-			NodeIDs:       [][]byte{},
+		{
+			NodeIDs:       [][]byte{testVdrs[1].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[1].vdr.PublicKey),
+			Weight:        testVdrs[1].vdr.Weight,
 			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 		},
-		&ibcava.Validator{
-			PublicKeyByte: []byte("PublicKeyByte"),
-			Weight:        100,
-			NodeIDs:       [][]byte{},
+		{
+			NodeIDs:       [][]byte{testVdrs[2].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[2].vdr.PublicKey),
+			Weight:        testVdrs[2].vdr.Weight,
 			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
 		},
 	}
@@ -833,7 +840,6 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 
 		std.RegisterInterfaces(interfaceRegistry)
 		ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
-		height := suite.chainB.LastHeader.GetTrustedHeight()
 
 		ctx := suite.chainA.GetContext()
 
@@ -843,16 +849,6 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 			suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
 
 		store := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, suite.chainA.ChainID)
-
-		ibcava.SetConsensusState(store, marshaler, ibcava.NewConsensusState(
-			ctx.BlockTime(),
-			vdrs,
-			[]byte{},
-			[]byte{},
-			[]byte{},
-			[]byte{},
-			[]byte{},
-		), height)
 
 		header = &ibcava.Header{
 			SubnetHeader: &ibcava.SubnetHeader{
@@ -870,16 +866,24 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 			Vdrs:                vdrs,
 		}
 
+		ibcava.SetConsensusState(store, marshaler, ibcava.NewConsensusState(
+			ctx.BlockTime(),
+			vdrs,
+			[]byte{},
+			[]byte{},
+			[]byte{},
+			[]byte{},
+			[]byte{},
+		), header.SubnetTrustedHeight)
+
 		tc.malleate()
 
-		clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
-
-		err = clientState.VerifyClientMessage(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), clientStore, header)
+		err = clientState.VerifyClientMessage(suite.chainA.GetContext(), marshaler, store, header)
 
 		if tc.expPass {
 			suite.Require().NoError(err, tc.name)
 		} else {
-			suite.Require().Error(err)
+			suite.Require().Error(err, tc.name)
 		}
 	}
 }
@@ -1071,590 +1075,187 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 // 	}
 // }
 
-// func (suite *AvalancheTestSuite) TestUpdateStateOnMisbehaviour() {
-// 	var path *ibctesting.Path
-
-// 	testCases := []struct {
-// 		name     string
-// 		malleate func()
-// 		expPass  bool
-// 	}{
-// 		{
-// 			"success",
-// 			func() {},
-// 			true,
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		tc := tc
-
-// 		suite.Run(tc.name, func() {
-// 			// reset suite to create fresh application state
-// 			suite.SetupTest()
-// 			path = ibctesting.NewPath(suite.chainA, suite.chainB)
-
-// 			err := path.EndpointA.CreateClient()
-// 			suite.Require().NoError(err)
-
-// 			tc.malleate()
-
-// 			clientState := path.EndpointA.GetClientState()
-// 			clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
-
-// 			clientState.UpdateStateOnMisbehaviour(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), clientStore, nil)
-
-// 			if tc.expPass {
-// 				clientStateBz := clientStore.Get(host.ClientStateKey())
-// 				suite.Require().NotEmpty(clientStateBz)
-
-// 				newClientState := clienttypes.MustUnmarshalClientState(suite.chainA.Codec, clientStateBz)
-// 				suite.Require().Equal(frozenHeight, newClientState.(*ibctm.ClientState).FrozenHeight)
-// 			}
-// 		})
-// 	}
-// }
-
-// func (suite *AvalancheTestSuite) TestUpdateState() {
-// 	clientState := localhost.NewClientState(clienttypes.NewHeight(1, uint64(suite.chain.GetContext().BlockHeight())))
-// 	store := suite.chain.GetSimApp().GetIBCKeeper().ClientKeeper.ClientStore(suite.chain.GetContext(), exported.LocalhostClientID)
-
-// 	suite.coordinator.CommitBlock(suite.chain)
-
-// 	heights := clientState.UpdateState(suite.chain.GetContext(), suite.chain.Codec, store, nil)
-
-// 	expHeight := clienttypes.NewHeight(1, uint64(suite.chain.GetContext().BlockHeight()))
-// 	suite.Require().True(heights[0].EQ(expHeight))
-
-// 	clientState = suite.chain.GetClientState(exported.LocalhostClientID)
-// 	suite.Require().True(heights[0].EQ(clientState.GetLatestHeight()))
-// }
-
-// func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
-// 	var (
-// 		substituteClientState exported.ClientState
-// 		substitutePath        *ibctesting.Path
-// 	)
-// 	testCases := []struct {
-// 		name     string
-// 		malleate func()
-// 	}{
-// 		{
-// 			"solo machine used for substitute", func() {
-// 				substituteClientState = ibctesting.NewSolomachine(suite.T(), suite.cdc, "solo machine", "", 1).ClientState()
-// 			},
-// 		},
-// 		{
-// 			"non-matching substitute", func() {
-// 				suite.coordinator.SetupClients(substitutePath)
-// 				substituteClientState, ok := suite.chainA.GetClientState(substitutePath.EndpointA.ClientID).(*ibctm.ClientState)
-// 				suite.Require().True(ok)
-// 				// change trusting period so that test should fail
-// 				substituteClientState.TrustingPeriod = time.Hour * 24 * 7
-
-// 				tmClientState := substituteClientState
-// 				tmClientState.ChainId += "different chain"
-// 			},
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		tc := tc
-
-// 		suite.Run(tc.name, func() {
-// 			suite.SetupTest() // reset
-// 			subjectPath := ibctesting.NewPath(suite.chainA, suite.chainB)
-// 			substitutePath = ibctesting.NewPath(suite.chainA, suite.chainB)
-
-// 			suite.coordinator.SetupClients(subjectPath)
-// 			subjectClientState := suite.chainA.GetClientState(subjectPath.EndpointA.ClientID).(*ibctm.ClientState)
-
-// 			// expire subject client
-// 			suite.coordinator.IncrementTimeBy(subjectClientState.TrustingPeriod)
-// 			suite.coordinator.CommitBlock(suite.chainA, suite.chainB)
-
-// 			tc.malleate()
-
-// 			subjectClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), subjectPath.EndpointA.ClientID)
-// 			substituteClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), substitutePath.EndpointA.ClientID)
-
-// 			err := subjectClientState.CheckSubstituteAndUpdateState(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), subjectClientStore, substituteClientStore, substituteClientState)
-// 			suite.Require().Error(err)
-// 		})
-// 	}
-// }
-
-// func (suite *AvalancheTestSuite) TestVerifyUpgrade() {
-// 	var (
-// 		newChainID                                  string
-// 		upgradedClient                              exported.ClientState
-// 		upgradedConsState                           exported.ConsensusState
-// 		lastHeight                                  clienttypes.Height
-// 		path                                        *ibctesting.Path
-// 		proofUpgradedClient, proofUpgradedConsState []byte
-// 		upgradedClientBz, upgradedConsStateBz       []byte
-// 		err                                         error
-// 	)
-
-// 	testCases := []struct {
-// 		name    string
-// 		setup   func()
-// 		expPass bool
-// 	}{
-// 		{
-// 			name: "successful upgrade",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: true,
-// 		},
-// 		{
-// 			name: "successful upgrade to same revision",
-// 			setup: func() {
-// 				upgradedClient = ibctm.NewClientState(suite.chainB.ChainID, ibctm.DefaultTrustLevel, trustingPeriod, ubdPeriod+trustingPeriod, maxClockDrift, clienttypes.NewHeight(clienttypes.ParseChainID(suite.chainB.ChainID), upgradedClient.GetLatestHeight().GetRevisionHeight()+10), commitmenttypes.GetSDKSpecs(), upgradePath)
-// 				upgradedClient = upgradedClient.ZeroCustomFields()
-// 				upgradedClientBz, err = clienttypes.MarshalClientState(suite.chainA.App.AppCodec(), upgradedClient)
-// 				suite.Require().NoError(err)
-
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: true,
-// 		},
-
-// 		{
-// 			name: "unsuccessful upgrade: upgrade height revision height is more than the current client revision height",
-// 			setup: func() {
-// 				// upgrade Height is 10 blocks from now
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+10))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: committed client does not have zeroed custom fields",
-// 			setup: func() {
-// 				// non-zeroed upgrade client
-// 				upgradedClient = ibctm.NewClientState(newChainID, ibctm.DefaultTrustLevel, trustingPeriod, ubdPeriod+trustingPeriod, maxClockDrift, newClientHeight, commitmenttypes.GetSDKSpecs(), upgradePath)
-// 				upgradedClientBz, err = clienttypes.MarshalClientState(suite.chainA.App.AppCodec(), upgradedClient)
-// 				suite.Require().NoError(err)
-
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: chain-specified parameters do not match committed client",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// change upgradedClient client-specified parameters
-// 				upgradedClient = ibctm.NewClientState("wrongchainID", ibctm.DefaultTrustLevel, trustingPeriod, ubdPeriod, maxClockDrift, newClientHeight, commitmenttypes.GetSDKSpecs(), upgradePath)
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: client-specified parameters do not match previous client",
-// 			setup: func() {
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// change upgradedClient client-specified parameters
-// 				upgradedClient = ibctm.NewClientState(newChainID, ibctm.DefaultTrustLevel, ubdPeriod, ubdPeriod+trustingPeriod, maxClockDrift+5, lastHeight, commitmenttypes.GetSDKSpecs(), upgradePath)
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: relayer-submitted consensus state does not match counterparty-committed consensus state",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for test
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				// change submitted upgradedConsensusState
-// 				upgradedConsState = &ibctm.ConsensusState{
-// 					NextValidatorsHash: []byte("maliciousValidators"),
-// 				}
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: client proof unmarshal failed",
-// 			setup: func() {
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-
-// 				proofUpgradedClient = []byte("proof")
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: consensus state proof unmarshal failed",
-// 			setup: func() {
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-
-// 				proofUpgradedConsState = []byte("proof")
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: client proof verification failed",
-// 			setup: func() {
-// 				// do not store upgraded client
-
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for test
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: consensus state proof verification failed",
-// 			setup: func() {
-// 				// do not store upgraded client
-
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: upgrade path is empty",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-
-// 				// SetClientState with empty upgrade path
-// 				tmClient, _ := cs.(*ibctm.ClientState)
-// 				tmClient.UpgradePath = []string{""}
-// 				suite.chainA.App.GetIBCKeeper().ClientKeeper.SetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID, tmClient)
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: upgraded height is not greater than current height",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: consensus state for upgrade height cannot be found",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+100))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: client is expired",
-// 			setup: func() {
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				// expire chainB's client
-// 				suite.chainA.ExpireClient(ubdPeriod)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: updated unbonding period is equal to trusting period",
-// 			setup: func() {
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz) //nolint:errcheck // ignore error for test
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 		{
-// 			name: "unsuccessful upgrade: final client is not valid",
-// 			setup: func() {
-// 				// new client has smaller unbonding period such that old trusting period is no longer valid
-// 				upgradedClient = ibctm.NewClientState(newChainID, ibctm.DefaultTrustLevel, trustingPeriod, trustingPeriod, maxClockDrift, newClientHeight, commitmenttypes.GetSDKSpecs(), upgradePath)
-// 				upgradedClientBz, err = clienttypes.MarshalClientState(suite.chainA.App.AppCodec(), upgradedClient)
-// 				suite.Require().NoError(err)
-
-// 				// upgrade Height is at next block
-// 				lastHeight = clienttypes.NewHeight(0, uint64(suite.chainB.GetContext().BlockHeight()+1))
-
-// 				// zero custom fields and store in upgrade store
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedClient(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedClientBz)            //nolint:errcheck // ignore error for testing
-// 				suite.chainB.GetSimApp().UpgradeKeeper.SetUpgradedConsensusState(suite.chainB.GetContext(), int64(lastHeight.GetRevisionHeight()), upgradedConsStateBz) //nolint:errcheck // ignore error for testing
-
-// 				// commit upgrade store changes and update clients
-
-// 				suite.coordinator.CommitBlock(suite.chainB)
-// 				err := path.EndpointA.UpdateClient()
-// 				suite.Require().NoError(err)
-
-// 				cs, found := suite.chainA.App.GetIBCKeeper().ClientKeeper.GetClientState(suite.chainA.GetContext(), path.EndpointA.ClientID)
-// 				suite.Require().True(found)
-
-// 				proofUpgradedClient, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedClientKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 				proofUpgradedConsState, _ = suite.chainB.QueryUpgradeProof(upgradetypes.UpgradedConsStateKey(int64(lastHeight.GetRevisionHeight())), cs.GetLatestHeight().GetRevisionHeight())
-// 			},
-// 			expPass: false,
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		tc := tc
-
-// 		// reset suite
-// 		suite.SetupTest()
-// 		path = ibctesting.NewPath(suite.chainA, suite.chainB)
-
-// 		suite.coordinator.SetupClients(path)
-
-// 		clientState := path.EndpointA.GetClientState().(*ibctm.ClientState)
-// 		revisionNumber := clienttypes.ParseChainID(clientState.ChainId)
-
-// 		var err error
-// 		newChainID, err = clienttypes.SetRevisionNumber(clientState.ChainId, revisionNumber+1)
-// 		suite.Require().NoError(err)
-
-// 		upgradedClient = ibctm.NewClientState(newChainID, ibctm.DefaultTrustLevel, trustingPeriod, ubdPeriod+trustingPeriod, maxClockDrift, clienttypes.NewHeight(revisionNumber+1, clientState.GetLatestHeight().GetRevisionHeight()+1), commitmenttypes.GetSDKSpecs(), upgradePath)
-// 		upgradedClient = upgradedClient.ZeroCustomFields()
-// 		upgradedClientBz, err = clienttypes.MarshalClientState(suite.chainA.App.AppCodec(), upgradedClient)
-// 		suite.Require().NoError(err)
-
-// 		upgradedConsState = &ibctm.ConsensusState{
-// 			NextValidatorsHash: []byte("nextValsHash"),
-// 		}
-// 		upgradedConsStateBz, err = clienttypes.MarshalConsensusState(suite.chainA.App.AppCodec(), upgradedConsState)
-// 		suite.Require().NoError(err)
-
-// 		tc.setup()
-
-// 		cs := suite.chainA.GetClientState(path.EndpointA.ClientID)
-// 		clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
-
-// 		// Call ZeroCustomFields on upgraded clients to clear any client-chosen parameters in test-case upgradedClient
-// 		upgradedClient = upgradedClient.ZeroCustomFields()
-
-// 		err = cs.VerifyUpgradeAndUpdateState(
-// 			suite.chainA.GetContext(),
-// 			suite.cdc,
-// 			clientStore,
-// 			upgradedClient,
-// 			upgradedConsState,
-// 			proofUpgradedClient,
-// 			proofUpgradedConsState,
-// 		)
-
-// 		if tc.expPass {
-// 			suite.Require().NoError(err, "verify upgrade failed on valid case: %s", tc.name)
-
-// 			clientState := suite.chainA.GetClientState(path.EndpointA.ClientID)
-// 			suite.Require().NotNil(clientState, "verify upgrade failed on valid case: %s", tc.name)
-
-// 			consensusState, found := suite.chainA.GetConsensusState(path.EndpointA.ClientID, clientState.GetLatestHeight())
-// 			suite.Require().NotNil(consensusState, "verify upgrade failed on valid case: %s", tc.name)
-// 			suite.Require().True(found)
-// 		} else {
-// 			suite.Require().Error(err, "verify upgrade passed on invalid case: %s", tc.name)
-// 		}
-// 	}
-// }
+func (suite *AvalancheTestSuite) TestUpdateStateOnMisbehaviour() {
+	var path *ibctesting.Path
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler := codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
+
+
+	testCases := []struct {
+		name     string
+		malleate func()
+		expPass  bool
+	}{
+		{
+			"success",
+			func() {},
+			true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		suite.Run(tc.name, func() {
+			// reset suite to create fresh application state
+			suite.SetupTest()
+			path = ibctesting.NewPath(suite.chainA, suite.chainB)
+
+			tc.malleate()
+
+			clientState := ibcava.NewClientState(
+				suite.chainA.ChainID,
+				ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+				suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
+
+			clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
+
+			clientState.UpdateStateOnMisbehaviour(suite.chainA.GetContext(), marshaler, clientStore, nil)
+
+			if tc.expPass {
+				clientStateBz := clientStore.Get(host.ClientStateKey())
+				suite.Require().NotEmpty(clientStateBz)
+			}
+		})
+	}
+}
+
+func (suite *AvalancheTestSuite) TestUpdateState() {
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler := codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
+
+	var (
+		path           *ibctesting.Path
+		clientMessage  exported.ClientMessage
+		clientStore    sdk.KVStore
+		consensusState exported.ConsensusState
+	)
+
+	testCases := []struct {
+		name     string
+		malleate func()
+		expPass  bool
+	}{
+		{
+			"success", func() {
+			},
+			true,
+		},
+		{
+			"invalid ClientMessage type", func() {
+				clientMessage = &ibcava.Misbehaviour{}
+			},
+			false,
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		suite.Run(tc.name, func() {
+			suite.SetupTest() // reset
+			path = ibctesting.NewPath(suite.chainA, suite.chainB)
+
+			err := path.EndpointA.CreateClient()
+			suite.Require().NoError(err)
+
+			// ensure counterparty state is committed
+			suite.coordinator.CommitBlock(suite.chainB)
+			clientStore = suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
+
+			clientMessage = &ibcava.Header{
+				SubnetHeader: &ibcava.SubnetHeader{
+					Height:    &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
+					Timestamp: suite.chainA.GetContext().BlockTime(),
+					BlockHash: []byte("SubnetHeaderBlockHash"),
+				},
+				PchainHeader: &ibcava.SubnetHeader{
+					Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+					Timestamp: suite.chainA.GetContext().BlockTime(),
+					BlockHash: []byte("PchainHeaderBlockHash"),
+				},
+				SubnetTrustedHeight: &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
+				PchainTrustedHeight: &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+				Vdrs:                []*ibcava.Validator{},
+			}
+
+			consensusState = ibcava.NewConsensusState(
+				suite.chainA.GetContext().BlockTime(),
+				[]*ibcava.Validator{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+			)
+
+			tc.malleate()
+
+			ibcava.SetConsensusState(clientStore, marshaler, consensusState.(*ibcava.ConsensusState), height)
+			clientState := path.EndpointA.GetClientState()
+			suite.Require().Panics(func() {
+				clientState.UpdateState(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), clientStore, clientMessage)
+			})
+		})
+	}
+}
+
+func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
+	var (
+		substituteClientState exported.ClientState
+		substitutePath        *ibctesting.Path
+	)
+	testCases := []struct {
+		name     string
+		malleate func()
+	}{
+		{
+			"solo machine used for substitute", func() {
+				substituteClientState = ibctesting.NewSolomachine(suite.T(), suite.cdc, "solo machine", "", 1).ClientState()
+			},
+		},
+		{
+			"non-matching substitute", func() {
+				suite.coordinator.SetupClients(substitutePath)
+				substituteClientState, ok := suite.chainA.GetClientState(substitutePath.EndpointA.ClientID).(*ibcava.ClientState)
+				suite.Require().True(ok)
+				// change trusting period so that test should fail
+				substituteClientState.TrustingPeriod = time.Hour * 24 * 7
+
+				tmClientState := substituteClientState
+				tmClientState.ChainId += "different chain"
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		suite.Run(tc.name, func() {
+			suite.SetupTest() // reset
+			subjectPath := ibctesting.NewPath(suite.chainA, suite.chainB)
+			substitutePath = ibctesting.NewPath(suite.chainA, suite.chainB)
+
+			suite.coordinator.SetupClients(subjectPath)
+			subjectClientState := suite.chainA.GetClientState(subjectPath.EndpointA.ClientID).(*ibcava.ClientState)
+
+			// expire subject client
+			suite.coordinator.IncrementTimeBy(subjectClientState.TrustingPeriod)
+			suite.coordinator.CommitBlock(suite.chainA, suite.chainB)
+
+			tc.malleate()
+
+			subjectClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), subjectPath.EndpointA.ClientID)
+			substituteClientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), substitutePath.EndpointA.ClientID)
+
+			err := subjectClientState.CheckSubstituteAndUpdateState(suite.chainA.GetContext(), suite.chainA.App.AppCodec(), subjectClientStore, substituteClientStore, substituteClientState)
+			suite.Require().Error(err)
+		})
+	}
+}
