@@ -50,7 +50,7 @@ func newTestValidator() *testValidator {
 		sk:     sk,
 		vdr: &warp.Validator{
 			PublicKey:      pk,
-			PublicKeyBytes: pk.Serialize(),
+			PublicKeyBytes: bls.PublicKeyToBytes(pk),
 			Weight:         3,
 			NodeIDs:        []ids.NodeID{nodeID},
 		},

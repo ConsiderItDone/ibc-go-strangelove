@@ -3,8 +3,6 @@ package avalanche_test
 import (
 	"bytes"
 	crand "crypto/rand"
-	"fmt"
-	"reflect"
 	time "time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -243,46 +241,46 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			},
 			true,
 		},
-		// {
-		// 	"delay time period has passed", func() {
-		// 		delayTimePeriod = uint64(time.Second.Nanoseconds())
-		// 	},
-		// 	true,
-		// },
-		// {
-		// 	"delay time period has not passed", func() {
-		// 		delayTimePeriod = uint64(time.Hour.Nanoseconds())
-		// 	},
-		// 	false,
-		// },
-		// {
-		// 	"delay block period has passed", func() {
-		// 		delayBlockPeriod = 1
-		// 	},
-		// 	true,
-		// },
-		// {
-		// 	"delay block period has not passed", func() {
-		// 		delayBlockPeriod = 1000
-		// 	},
-		// 	false,
-		// },
-		// {
-		// 	"latest client height < height", func() {
-		// 		proofHeight = testingpath.EndpointA.GetClientState().GetLatestHeight().Increment()
-		// 	}, false,
-		// },
-		// {
-		// 	"failed to unmarshal merkle proof", func() {
-		// 		proof = nil
-		// 	}, false,
-		// },
-		// {
-		// 	"proof verification failed", func() {
-		// 		// change the value being proved
-		// 		value = []byte("invalid value")
-		// 	}, false,
-		// },
+		{
+			"delay time period has passed", func() {
+				delayTimePeriod = uint64(time.Second.Nanoseconds())
+			},
+			true,
+		},
+		{
+			"delay time period has not passed", func() {
+				delayTimePeriod = uint64(time.Hour.Nanoseconds())
+			},
+			false,
+		},
+		{
+			"delay block period has passed", func() {
+				delayBlockPeriod = 1
+			},
+			true,
+		},
+		{
+			"delay block period has not passed", func() {
+				delayBlockPeriod = 1000
+			},
+			false,
+		},
+		{
+			"latest client height < height", func() {
+				proofHeight = testingpath.EndpointA.GetClientState().GetLatestHeight().Increment()
+			}, false,
+		},
+		{
+			"failed to unmarshal merkle proof", func() {
+				proof = nil
+			}, false,
+		},
+		{
+			"proof verification failed", func() {
+				// change the value being proved
+				value = []byte("invalid value")
+			}, false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -341,7 +339,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 
 			signers := set.NewBits()
 			signers.Add(1)
-			// signers.Add(2)
+			signers.Add(2)
 			signersInput := signers.Bytes()
 
 			unsignedMsg, _ := warp.NewUnsignedMessage(
@@ -352,50 +350,11 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			unsignedBytes := unsignedMsg.Bytes()
 
 			vdr1Sig1 := bls.Sign(testVdrs[1].sk, unsignedBytes)
-			// vdr2Sig1 := bls.Sign(testVdrs[2].sk, unsignedBytes)
-			aggSig1, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig1}) //, vdr2Sig1})
+			vdr2Sig1 := bls.Sign(testVdrs[2].sk, unsignedBytes)
+			aggSig1, err := bls.AggregateSignatures([]*bls.Signature{vdr1Sig1, vdr2Sig1})
 			suite.NoError(err)
 			signedStorageRoot := [bls.SignatureLen]byte{}
 			copy(signedStorageRoot[:], bls.SignatureToBytes(aggSig1))
-
-			vdrs1, totalWeigth, err := ibcava.ValidateValidatorSet(suite.chainA.GetContext(), vdrs)
-
-			suite.Require().NoError(err)
-			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
-			if err != nil {
-				// err = errorsmod.Wrap(err, "1-----------")
-				// suite.Require().NoError(err)
-
-				if !reflect.DeepEqual(vdrs1[1].PublicKeyBytes, testVdrs[1].vdr.PublicKeyBytes) {
-					fmt.Println("PublicKeyBytes not equal")
-				}
-				fmt.Println("1 err")
-			}
-			fmt.Println("1 pass")
-
-			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
-			if err != nil {
-				// err = errorsmod.Wrap(err, "2-----------")
-				// suite.Require().NoError(err)
-				fmt.Println("2 err")
-			}
-			fmt.Println("2 pass")
-
-			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
-			if err != nil {
-				// err = errorsmod.Wrap(err, "3-----------")
-				// suite.Require().NoError(err)
-				fmt.Println("3 err")
-			}
-			fmt.Println("3 pass")
-
-			err = ibcava.Verify(signersInput, signedStorageRoot, unsignedBytes, vdrs1, totalWeigth, 1, 3)
-			if err != nil {
-				// err = errorsmod.Wrap(err, "4-----------")
-				// suite.Require().NoError(err)
-				fmt.Println("4 err")
-			}
-			fmt.Println("4 pass")
 
 			var validatorSet []byte
 			for _, m := range vdrs {
@@ -624,14 +583,15 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			proof, _ = ibcava.IterateVals(proofOut)
 
 			path = &ibcava.MerkleKey{Key: key}
-
 			signers := set.NewBits()
 			signers.Add(1)
 			signers.Add(2)
 			signersInput := signers.Bytes()
 
+			chainID, _ := ids.ToID([]byte(testingpath.EndpointA.Chain.ChainID))
+
 			unsignedMsg, _ := warp.NewUnsignedMessage(
-				sourceChainID,
+				chainID,
 				ids.Empty,
 				storageRoot,
 			)
@@ -651,7 +611,7 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			}
 
 			unsignedMsgValidator, _ := warp.NewUnsignedMessage(
-				sourceChainID,
+				chainID,
 				ids.Empty,
 				validatorSet,
 			)
@@ -803,7 +763,7 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 						Timestamp: suite.chainA.GetContext().BlockTime(),
 						BlockHash: []byte("PchainHeaderBlockHash"),
 					},
-					Vdrs:                []*ibcava.Validator{vdrs[0], vdrs[2]},
+					Vdrs: []*ibcava.Validator{vdrs[0], vdrs[2]},
 				}
 			},
 			expPass: false,
@@ -833,7 +793,7 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 						Timestamp: suite.chainA.GetContext().BlockTime(),
 						BlockHash: []byte("PchainHeaderBlockHash"),
 					},
-					Vdrs:                vdrs,
+					Vdrs: vdrs,
 				}
 			},
 			expPass: false,
@@ -887,7 +847,7 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 				Timestamp: suite.chainA.GetContext().BlockTime(),
 				BlockHash: []byte("PchainHeaderBlockHash"),
 			},
-			Vdrs:                vdrs,
+			Vdrs: vdrs,
 		}
 
 		ibcava.SetConsensusState(store, marshaler, ibcava.NewConsensusState(
@@ -1026,7 +986,7 @@ func (suite *AvalancheTestSuite) TestUpdateState() {
 					Timestamp: suite.chainA.GetContext().BlockTime(),
 					BlockHash: []byte("PchainHeaderBlockHash"),
 				},
-				Vdrs:                []*ibcava.Validator{},
+				Vdrs: []*ibcava.Validator{},
 			}
 
 			consensusState = ibcava.NewConsensusState(
@@ -1074,7 +1034,7 @@ func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
 			"non-matching substitute", func() {
 				substituteClientState = ibcava.NewClientState(
 					"different chain",
-					ibcava.DefaultTrustLevel, time.Hour * 24 * 7, maxClockDrift,
+					ibcava.DefaultTrustLevel, time.Hour*24*7, maxClockDrift,
 					suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
 			},
 		},
