@@ -44,33 +44,42 @@ func (cs *ClientState) verifyHeader(
 	header *Header,
 ) error {
 	// Retrieve trusted consensus states for each Header in misbehaviour
-	consState, found := GetConsensusState(clientStore, cdc, header.SubnetTrustedHeight)
+	consState, found := GetConsensusState(clientStore, cdc, header.PrevSubnetHeader.Height)
 	if !found {
-		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header at TrustedHeight: %s", header.SubnetTrustedHeight)
+		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header at TrustedHeight: %s", header.PrevSubnetHeader.Height)
 	}
 
 	// UpdateClient only accepts updates with a header at the same revision
 	// as the trusted consensus state
-	if header.SubnetHeader.Height.RevisionNumber != header.SubnetTrustedHeight.RevisionNumber {
+	if header.SubnetHeader.Height.RevisionNumber != header.PrevSubnetHeader.Height.RevisionNumber {
 		return errorsmod.Wrapf(
 			ErrInvalidHeaderHeight,
 			"header height revision %d does not match trusted header revision %d",
-			header.SubnetHeader.Height.RevisionNumber, header.SubnetTrustedHeight.RevisionNumber,
+			header.SubnetHeader.Height.RevisionNumber, header.PrevSubnetHeader.Height.RevisionNumber,
 		)
 	}
 
-	if header.PchainHeader.Height.RevisionNumber != header.PchainTrustedHeight.RevisionNumber {
+	if header.PchainHeader.Height.RevisionNumber != header.PrevPchainHeader.Height.RevisionNumber {
 		return errorsmod.Wrapf(
 			ErrInvalidHeaderHeight,
 			"header height revision %d does not match trusted header revision %d",
-			header.PchainHeader.Height.RevisionNumber, header.PchainTrustedHeight.RevisionNumber,
+			header.PchainHeader.Height.RevisionNumber, header.PrevPchainHeader.Height.RevisionNumber,
 		)
 	}
+
 	// assert header height is newer than consensus state
-	if header.PchainHeader.Height.LT(*header.PchainTrustedHeight) {
+	if header.PrevSubnetHeader.Height.LTE(*header.SubnetHeader.Height) {
 		return errorsmod.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"header height ≤ consensus state height (%s < %s)", header.PchainHeader.Height, header.PchainTrustedHeight,
+			"SubnetHeader height ≤ consensus state height (%s < %s)", header.PrevSubnetHeader.Height, header.SubnetHeader.Height,
+		)
+	}
+
+	// assert header height is newer than consensus state
+	if header.PrevPchainHeader.Height.LTE(*header.PchainHeader.Height) {
+		return errorsmod.Wrapf(
+			clienttypes.ErrInvalidHeader,
+			"PchainHeader height ≤ consensus state height (%s < %s)", header.PrevPchainHeader.Height, header.PchainHeader.Height,
 		)
 	}
 

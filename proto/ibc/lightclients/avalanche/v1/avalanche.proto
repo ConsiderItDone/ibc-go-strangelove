@@ -77,11 +77,10 @@ message Misbehaviour {
 }
 
 message Header {
-  SubnetHeader subnet_header = 1;
-  SubnetHeader pchain_header = 2;
-
-  ibc.core.client.v1.Height subnet_trusted_height = 3;
-  ibc.core.client.v1.Height pchain_trusted_height = 4;
+  SubnetHeader prev_subnet_header = 1;
+  SubnetHeader subnet_header = 2;
+  SubnetHeader prev_pchain_header = 3;
+  SubnetHeader pchain_header = 4;
 
   bytes              storage_root         = 5;
   bytes              signed_storage_root  = 6;

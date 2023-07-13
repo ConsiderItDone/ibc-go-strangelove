@@ -78,14 +78,14 @@ func (cs *ClientState) verifyMisbehaviour(ctx sdk.Context, clientStore sdk.KVSto
 	// Regardless of the type of misbehaviour, ensure that both headers are valid and would have been accepted by light-client
 
 	// Retrieve trusted consensus states for each Header in misbehaviour
-	avaConsensusState1, found := GetConsensusState(clientStore, cdc, misbehaviour.Header1.SubnetTrustedHeight)
+	avaConsensusState1, found := GetConsensusState(clientStore, cdc, misbehaviour.Header1.PrevSubnetHeader.Height)
 	if !found {
-		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header1 at TrustedHeight: %s", misbehaviour.Header1.SubnetTrustedHeight)
+		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header1 at PrevSubnetHeader.Height: %s", misbehaviour.Header1.PrevSubnetHeader.Height)
 	}
 
-	avaConsensusState2, found := GetConsensusState(clientStore, cdc, misbehaviour.Header2.SubnetTrustedHeight)
+	avaConsensusState2, found := GetConsensusState(clientStore, cdc, misbehaviour.Header2.PrevSubnetHeader.Height)
 	if !found {
-		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header2 at TrustedHeight: %s", misbehaviour.Header2.SubnetTrustedHeight)
+		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header2 at PrevSubnetHeader.Height: %s", misbehaviour.Header2.PrevSubnetHeader.Height)
 	}
 
 	// Check the validity of the two conflicting headers against their respective

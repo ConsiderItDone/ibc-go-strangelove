@@ -784,17 +784,25 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 				// passing the CurrentHeader.Height as the block height as it will become a previous height once we commit N blocks
 				header = &ibcava.Header{
 					SubnetHeader: &ibcava.SubnetHeader{
-						Height:    &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
+						Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 2},
 						Timestamp: suite.chainA.GetContext().BlockTime(),
 						BlockHash: []byte("SubnetHeaderBlockHash"),
 					},
 					PchainHeader: &ibcava.SubnetHeader{
-						Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+						Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 3},
 						Timestamp: suite.chainA.GetContext().BlockTime(),
 						BlockHash: []byte("PchainHeaderBlockHash"),
 					},
-					SubnetTrustedHeight: &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
-					PchainTrustedHeight: &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+					PrevSubnetHeader: &ibcava.SubnetHeader{
+						Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
+						Timestamp: suite.chainA.GetContext().BlockTime(),
+						BlockHash: []byte("SubnetHeaderBlockHash"),
+					},
+					PrevPchainHeader: &ibcava.SubnetHeader{
+						Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 2},
+						Timestamp: suite.chainA.GetContext().BlockTime(),
+						BlockHash: []byte("PchainHeaderBlockHash"),
+					},
 					Vdrs:                []*ibcava.Validator{vdrs[0], vdrs[2]},
 				}
 			},
@@ -815,8 +823,16 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 						Timestamp: suite.chainA.GetContext().BlockTime(),
 						BlockHash: []byte("PchainHeaderBlockHash"),
 					},
-					SubnetTrustedHeight: &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
-					PchainTrustedHeight: &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+					PrevSubnetHeader: &ibcava.SubnetHeader{
+						Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 10},
+						Timestamp: suite.chainA.GetContext().BlockTime(),
+						BlockHash: []byte("SubnetHeaderBlockHash"),
+					},
+					PrevPchainHeader: &ibcava.SubnetHeader{
+						Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 5},
+						Timestamp: suite.chainA.GetContext().BlockTime(),
+						BlockHash: []byte("PchainHeaderBlockHash"),
+					},
 					Vdrs:                vdrs,
 				}
 			},
@@ -852,17 +868,25 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 
 		header = &ibcava.Header{
 			SubnetHeader: &ibcava.SubnetHeader{
-				Height:    &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
+				Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
 				Timestamp: suite.chainA.GetContext().BlockTime(),
 				BlockHash: []byte("SubnetHeaderBlockHash"),
 			},
 			PchainHeader: &ibcava.SubnetHeader{
-				Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+				Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 2},
 				Timestamp: suite.chainA.GetContext().BlockTime(),
 				BlockHash: []byte("PchainHeaderBlockHash"),
 			},
-			SubnetTrustedHeight: &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
-			PchainTrustedHeight: &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+			PrevSubnetHeader: &ibcava.SubnetHeader{
+				Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 2},
+				Timestamp: suite.chainA.GetContext().BlockTime(),
+				BlockHash: []byte("SubnetHeaderBlockHash"),
+			},
+			PrevPchainHeader: &ibcava.SubnetHeader{
+				Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 3},
+				Timestamp: suite.chainA.GetContext().BlockTime(),
+				BlockHash: []byte("PchainHeaderBlockHash"),
+			},
 			Vdrs:                vdrs,
 		}
 
@@ -874,7 +898,7 @@ func (suite *AvalancheTestSuite) TestVerifyHeader() {
 			[]byte{},
 			[]byte{},
 			[]byte{},
-		), header.SubnetTrustedHeight)
+		), header.PrevSubnetHeader.Height)
 
 		tc.malleate()
 
@@ -983,17 +1007,25 @@ func (suite *AvalancheTestSuite) TestUpdateState() {
 
 			clientMessage = &ibcava.Header{
 				SubnetHeader: &ibcava.SubnetHeader{
-					Height:    &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
+					Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
 					Timestamp: suite.chainA.GetContext().BlockTime(),
 					BlockHash: []byte("SubnetHeaderBlockHash"),
 				},
 				PchainHeader: &ibcava.SubnetHeader{
-					Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+					Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 2},
 					Timestamp: suite.chainA.GetContext().BlockTime(),
 					BlockHash: []byte("PchainHeaderBlockHash"),
 				},
-				SubnetTrustedHeight: &clienttypes.Height{RevisionNumber: 1, RevisionHeight: 2},
-				PchainTrustedHeight: &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 3},
+				PrevSubnetHeader: &ibcava.SubnetHeader{
+					Height:    &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 2},
+					Timestamp: suite.chainA.GetContext().BlockTime(),
+					BlockHash: []byte("SubnetHeaderBlockHash"),
+				},
+				PrevPchainHeader: &ibcava.SubnetHeader{
+					Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 3},
+					Timestamp: suite.chainA.GetContext().BlockTime(),
+					BlockHash: []byte("PchainHeaderBlockHash"),
+				},
 				Vdrs:                []*ibcava.Validator{},
 			}
 
