@@ -46,10 +46,10 @@ func (misbehaviour Misbehaviour) ValidateBasic() error {
 	if misbehaviour.Header2 == nil {
 		return errorsmod.Wrap(ErrInvalidHeader, "misbehaviour Header2 cannot be nil")
 	}
-	if misbehaviour.Header1.PrevSubnetHeader.Height.RevisionHeight == 0 {
+	if misbehaviour.Header1.SubnetHeader.Height.RevisionHeight == 0 {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "misbehaviour Header1 cannot have zero revision height")
 	}
-	if misbehaviour.Header2.PrevSubnetHeader.Height.RevisionHeight == 0 {
+	if misbehaviour.Header2.SubnetHeader.Height.RevisionHeight == 0 {
 		return errorsmod.Wrapf(ErrInvalidHeaderHeight, "misbehaviour Header2 cannot have zero revision height")
 	}
 

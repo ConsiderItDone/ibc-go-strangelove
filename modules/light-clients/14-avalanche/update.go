@@ -1,7 +1,7 @@
 package avalanche
 
 import (
-	"fmt"
+	"math/big"
 	"reflect"
 
 	errorsmod "cosmossdk.io/errors"
@@ -44,43 +44,52 @@ func (cs *ClientState) verifyHeader(
 	header *Header,
 ) error {
 	// Retrieve trusted consensus states for each Header in misbehaviour
-	consState, found := GetConsensusState(clientStore, cdc, header.PrevSubnetHeader.Height)
+	consState, found := GetConsensusState(clientStore, cdc, header.SubnetHeader.Height)
 	if !found {
-		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header at TrustedHeight: %s", header.PrevSubnetHeader.Height)
+		return errorsmod.Wrapf(clienttypes.ErrConsensusStateNotFound, "could not get trusted consensus state from clientStore for Header at TrustedHeight: %s", header.SubnetHeader.Height)
 	}
 
 	// UpdateClient only accepts updates with a header at the same revision
 	// as the trusted consensus state
-	if header.SubnetHeader.Height.RevisionNumber != header.PrevSubnetHeader.Height.RevisionNumber {
+	if header.SubnetHeader.Height.RevisionNumber != header.SubnetHeader.Height.RevisionNumber {
 		return errorsmod.Wrapf(
 			ErrInvalidHeaderHeight,
 			"header height revision %d does not match trusted header revision %d",
-			header.SubnetHeader.Height.RevisionNumber, header.PrevSubnetHeader.Height.RevisionNumber,
+			header.SubnetHeader.Height.RevisionNumber, header.SubnetHeader.Height.RevisionNumber,
 		)
 	}
 
-	if header.PchainHeader.Height.RevisionNumber != header.PrevPchainHeader.Height.RevisionNumber {
+	if header.PchainHeader.Height.RevisionNumber != header.SubnetHeader.Height.RevisionNumber {
 		return errorsmod.Wrapf(
 			ErrInvalidHeaderHeight,
 			"header height revision %d does not match trusted header revision %d",
-			header.PchainHeader.Height.RevisionNumber, header.PrevPchainHeader.Height.RevisionNumber,
+			header.PchainHeader.Height.RevisionNumber, header.SubnetHeader.Height.RevisionNumber,
 		)
 	}
 
 	// assert header height is newer than consensus state
-	if header.PrevSubnetHeader.Height.LTE(*header.SubnetHeader.Height) {
+	if header.SubnetHeader.Height.LTE(*header.SubnetHeader.Height) {
 		return errorsmod.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"SubnetHeader height ≤ consensus state height (%s < %s)", header.PrevSubnetHeader.Height, header.SubnetHeader.Height,
+			"SubnetHeader height ≤ consensus state height (%s < %s)", header.SubnetHeader.Height, header.SubnetHeader.Height,
 		)
 	}
 
 	// assert header height is newer than consensus state
-	if header.PrevPchainHeader.Height.LTE(*header.PchainHeader.Height) {
+	if header.SubnetHeader.Height.LTE(*header.PchainHeader.Height) {
 		return errorsmod.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"PchainHeader height ≤ consensus state height (%s < %s)", header.PrevPchainHeader.Height, header.PchainHeader.Height,
+			"PchainHeader height ≤ consensus state height (%s < %s)", header.SubnetHeader.Height, header.PchainHeader.Height,
 		)
+	}
+
+	uniqPrevVdrs, _, err := ValidateValidatorSet(ctx, header.PrevSubnetHeader.PchainVdrs)
+	if err != nil {
+		return errorsmod.Wrap(err, "failed to verify header")
+	}
+	uniqVdrs, uniqWeight, err := ValidateValidatorSet(ctx, header.SubnetHeader.PchainVdrs)
+	if err != nil {
+		return errorsmod.Wrap(err, "failed to verify header")
 	}
 
 	headerUniqVdrs, headerTotalWeight, err := ValidateValidatorSet(ctx, header.Vdrs)
@@ -91,16 +100,34 @@ func (cs *ClientState) verifyHeader(
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify header")
 	}
-	if headerTotalWeight != consensusTotalWeight {
+
+	// TODO check 2/3 vdrs 1 msg or all msg
+	numberTrustedVdrs := 0
+	for i := range uniqPrevVdrs {
+		for m := range uniqVdrs {
+			if reflect.DeepEqual(uniqPrevVdrs[i].PublicKeyBytes, uniqVdrs[m].PublicKeyBytes) {
+				numberTrustedVdrs = +1
+			}
+		}
+	}
+
+	scaledNumberTrustedVdrs := new(big.Int).SetInt64(int64(numberTrustedVdrs))
+	scaledNumberTrustedVdrs.Mul(scaledNumberTrustedVdrs, new(big.Int).SetUint64(3))
+	scaledVdrsLen := new(big.Int).SetUint64(uint64(len(uniqVdrs)))
+	scaledVdrsLen.Mul(scaledVdrsLen, new(big.Int).SetUint64(2))
+	if scaledNumberTrustedVdrs.Cmp(scaledVdrsLen) != 1 {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 	}
 
-	if len(headerUniqVdrs) != len(consensusUniqVdrs) {
+	if headerTotalWeight != consensusTotalWeight || headerTotalWeight != uniqWeight {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 	}
-	fmt.Println("New case ")
+
+	if len(headerUniqVdrs) != len(consensusUniqVdrs) || len(headerUniqVdrs) != len(uniqVdrs) {
+		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
+	}
 	for i := range headerUniqVdrs {
-		if !reflect.DeepEqual(headerUniqVdrs[i].PublicKeyBytes, consensusUniqVdrs[i].PublicKeyBytes) {
+		if !reflect.DeepEqual(headerUniqVdrs[i].PublicKeyBytes, consensusUniqVdrs[i].PublicKeyBytes) || !reflect.DeepEqual(headerUniqVdrs[i].PublicKeyBytes, uniqVdrs[i].PublicKeyBytes) {
 			return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 		}
 	}

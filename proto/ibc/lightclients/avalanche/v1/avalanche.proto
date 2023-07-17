@@ -79,18 +79,27 @@ message Misbehaviour {
 message Header {
   SubnetHeader prev_subnet_header = 1;
   SubnetHeader subnet_header = 2;
-  SubnetHeader prev_pchain_header = 3;
-  SubnetHeader pchain_header = 4;
+  PchainHeader pchain_header = 3;
 
-  bytes              storage_root         = 5;
-  bytes              signed_storage_root  = 6;
-  bytes              validator_set        = 7;
-  bytes              signed_validator_set = 8;
-  repeated Validator vdrs                 = 9;
-  bytes              signers_input        = 10;
+  bytes              storage_root         = 4;
+  bytes              signed_storage_root  = 5;
+  bytes              validator_set        = 6;
+  bytes              signed_validator_set = 7;
+  repeated Validator vdrs                 = 8;
+  bytes              signers_input        = 9;
 }
 
 message SubnetHeader {
+  ibc.core.client.v1.Height height     = 1;
+  google.protobuf.Timestamp timestamp  = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  bytes                     block_hash = 3;
+
+  ibc.core.client.v1.Height pchain_height     = 4;
+  repeated Validator        pchain_vdrs        = 5;
+}
+
+
+message PchainHeader {
   ibc.core.client.v1.Height height     = 1;
   google.protobuf.Timestamp timestamp  = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   bytes                     block_hash = 3;
