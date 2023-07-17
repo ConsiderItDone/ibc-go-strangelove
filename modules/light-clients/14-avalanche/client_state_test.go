@@ -1047,3 +1047,155 @@ func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
 		})
 	}
 }
+
+func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
+
+	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
+	marshaler := codec.NewProtoCodec(interfaceRegistry)
+
+	std.RegisterInterfaces(interfaceRegistry)
+	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
+
+	var (
+		path           *ibctesting.Path
+		clientMessage  exported.ClientMessage
+		consensusState ibcava.ConsensusState
+	)
+
+	testVdrs = []*testValidator{
+		newTestValidator(),
+		newTestValidator(),
+		newTestValidator(),
+	}
+
+	vdrs := []*ibcava.Validator{
+		{
+			NodeIDs:       [][]byte{testVdrs[0].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[0].vdr.PublicKey),
+			Weight:        testVdrs[0].vdr.Weight,
+			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
+		},
+		{
+			NodeIDs:       [][]byte{testVdrs[1].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[1].vdr.PublicKey),
+			Weight:        testVdrs[1].vdr.Weight,
+			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
+		},
+		{
+			NodeIDs:       [][]byte{testVdrs[2].nodeID.Bytes()},
+			PublicKeyByte: bls.PublicKeyToBytes(testVdrs[2].vdr.PublicKey),
+			Weight:        testVdrs[2].vdr.Weight,
+			EndTime:       suite.chainA.GetContext().BlockTime().Add(900000000000000),
+		},
+	}
+
+
+	testCases := []struct {
+		name     string
+		malleate func()
+		expPass  bool
+	}{
+		{
+			"valid update no misbehaviour",
+			func() {},
+			false,
+		},
+		{
+			"in valid update, new vdrs",
+			func() {
+				clientMessage = &ibcava.Header{
+					SubnetHeader: &ibcava.SubnetHeader{
+						Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 2},
+						Timestamp:  suite.chainA.GetContext().BlockTime(),
+						BlockHash:  []byte("SubnetHeaderBlockHash"),
+						PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+					},				
+					PrevSubnetHeader: &ibcava.SubnetHeader{
+						Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
+						Timestamp:  suite.chainA.GetContext().BlockTime(),
+						BlockHash:  []byte("SubnetHeaderBlockHash"),
+						PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[2]},
+					},
+					PchainHeader: &ibcava.PchainHeader{
+						Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 3},
+						Timestamp: suite.chainA.GetContext().BlockTime(),
+						BlockHash: []byte("PchainHeaderBlockHash"),
+					},
+					Vdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+				}
+			},
+			true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		suite.Run(tc.name, func() {
+			// reset suite to create fresh application state
+			suite.SetupTest()
+			path = ibctesting.NewPath(suite.chainA, suite.chainB)
+
+			err := path.EndpointA.CreateClient()
+			suite.Require().NoError(err)
+
+			// ensure counterparty state is committed
+			suite.coordinator.CommitBlock(suite.chainB)
+			clientMessage = &ibcava.Header{
+				SubnetHeader: &ibcava.SubnetHeader{
+					Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 2},
+					Timestamp:  suite.chainA.GetContext().BlockTime(),
+					BlockHash:  []byte("SubnetHeaderBlockHash"),
+					PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+				},				
+				PrevSubnetHeader: &ibcava.SubnetHeader{
+					Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
+					Timestamp:  suite.chainA.GetContext().BlockTime(),
+					BlockHash:  []byte("SubnetHeaderBlockHash"),
+					PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+				},
+				PchainHeader: &ibcava.PchainHeader{
+					Height:    &clienttypes.Height{RevisionNumber: 3, RevisionHeight: 3},
+					Timestamp: suite.chainA.GetContext().BlockTime(),
+					BlockHash: []byte("PchainHeaderBlockHash"),
+				},
+				Vdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+			}
+
+			suite.Require().NoError(err)
+
+			consensusState = *ibcava.NewConsensusState(
+				suite.chainA.GetContext().BlockTime(),
+				[]*ibcava.Validator{vdrs[0], vdrs[2]},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+				[]byte{},
+			)
+
+			clientState := ibcava.NewClientState(
+				suite.chainA.ChainID,
+				ibcava.DefaultTrustLevel, trustingPeriod, maxClockDrift,
+				suite.chainB.LastHeader.GetTrustedHeight(), upgradePath, [][]byte{})
+
+			tc.malleate()
+
+			clientStore := suite.chainA.App.GetIBCKeeper().ClientKeeper.ClientStore(suite.chainA.GetContext(), path.EndpointA.ClientID)
+
+			ibcava.SetConsensusState(clientStore, marshaler, &consensusState, height)
+
+			foundMisbehaviour := clientState.CheckForMisbehaviour(
+				suite.chainA.GetContext(),
+				marshaler,
+				clientStore, // pass in clientID prefixed clientStore
+				clientMessage,
+			)
+
+			if tc.expPass {
+				suite.Require().True(foundMisbehaviour)
+			} else {
+				suite.Require().False(foundMisbehaviour)
+			}
+		})
+	}
+}

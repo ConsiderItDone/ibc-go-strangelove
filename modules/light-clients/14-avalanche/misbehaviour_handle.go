@@ -2,6 +2,7 @@ package avalanche
 
 import (
 	"bytes"
+	"math/big"
 	"reflect"
 
 	errorsmod "cosmossdk.io/errors"
@@ -19,6 +20,34 @@ func (cs ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCode
 	case *Header:
 		avaHeader := msg
 		consState := avaHeader.ConsensusState()
+
+		uniqPrevVdrs, _, err := ValidateValidatorSet(ctx, avaHeader.PrevSubnetHeader.PchainVdrs)
+		if err != nil {
+			return true
+		}
+		uniqVdrs, _, err := ValidateValidatorSet(ctx, avaHeader.SubnetHeader.PchainVdrs)
+		if err != nil {
+			return true
+		}
+
+		// TODO check 2/3 vdrs 1 msg or all msg
+		numberTrustedVdrs := 0
+		for i := range uniqPrevVdrs {
+			for m := range uniqVdrs {
+				if reflect.DeepEqual(uniqPrevVdrs[i].PublicKeyBytes, uniqVdrs[m].PublicKeyBytes) {
+					numberTrustedVdrs = numberTrustedVdrs + 1
+				}
+			}
+		}
+
+		scaledNumberTrustedVdrs := new(big.Int).SetInt64(int64(numberTrustedVdrs))
+		scaledNumberTrustedVdrs.Mul(scaledNumberTrustedVdrs, new(big.Int).SetUint64(3))
+		scaledVdrsLen := new(big.Int).SetUint64(uint64(len(uniqVdrs)))
+		scaledVdrsLen.Mul(scaledVdrsLen, new(big.Int).SetUint64(2))
+
+		if scaledNumberTrustedVdrs.Cmp(scaledVdrsLen) != 1 {
+			return true
+		}
 
 		// Check if the Client store already has a consensus state for the header's height
 		// If the consensus state exists, and it matches the header then we return early
@@ -132,7 +161,7 @@ func checkMisbehaviourHeader(ctx sdk.Context,
 		return errorsmod.Wrap(err, "failed to verify header")
 	}
 
-	if len(headerUniqVdrs) != len(consensusUniqVdrs){
+	if len(headerUniqVdrs) != len(consensusUniqVdrs) {
 		return errorsmod.Wrap(err, "failed to verify header")
 	}
 

@@ -1,7 +1,6 @@
 package avalanche
 
 import (
-	"math/big"
 	"reflect"
 
 	errorsmod "cosmossdk.io/errors"
@@ -83,10 +82,6 @@ func (cs *ClientState) verifyHeader(
 		)
 	}
 
-	uniqPrevVdrs, _, err := ValidateValidatorSet(ctx, header.PrevSubnetHeader.PchainVdrs)
-	if err != nil {
-		return errorsmod.Wrap(err, "failed to verify header")
-	}
 	uniqVdrs, uniqWeight, err := ValidateValidatorSet(ctx, header.SubnetHeader.PchainVdrs)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify header")
@@ -99,24 +94,6 @@ func (cs *ClientState) verifyHeader(
 	consensusUniqVdrs, consensusTotalWeight, err := ValidateValidatorSet(ctx, consState.Vdrs)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify header")
-	}
-
-	// TODO check 2/3 vdrs 1 msg or all msg
-	numberTrustedVdrs := 0
-	for i := range uniqPrevVdrs {
-		for m := range uniqVdrs {
-			if reflect.DeepEqual(uniqPrevVdrs[i].PublicKeyBytes, uniqVdrs[m].PublicKeyBytes) {
-				numberTrustedVdrs = +1
-			}
-		}
-	}
-
-	scaledNumberTrustedVdrs := new(big.Int).SetInt64(int64(numberTrustedVdrs))
-	scaledNumberTrustedVdrs.Mul(scaledNumberTrustedVdrs, new(big.Int).SetUint64(3))
-	scaledVdrsLen := new(big.Int).SetUint64(uint64(len(uniqVdrs)))
-	scaledVdrsLen.Mul(scaledVdrsLen, new(big.Int).SetUint64(2))
-	if scaledNumberTrustedVdrs.Cmp(scaledVdrsLen) != 1 {
-		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "failed to verify header")
 	}
 
 	if headerTotalWeight != consensusTotalWeight || headerTotalWeight != uniqWeight {
