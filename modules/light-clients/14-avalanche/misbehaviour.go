@@ -67,7 +67,7 @@ func (misbehaviour Misbehaviour) ValidateBasic() error {
 		)
 	}
 	// Ensure that Height1 is greater than or equal to Height2
-	if misbehaviour.Header1.SubnetHeader.Height.LT(misbehaviour.Header2.SubnetHeader.Height) {
+	if misbehaviour.Header1.SubnetHeader.Height.LT(*misbehaviour.Header2.SubnetHeader.Height) {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidMisbehaviour, "Header1 height is less than Header2 height (%s < %s)", misbehaviour.Header1.SubnetHeader.Height, misbehaviour.Header2.SubnetHeader.Height)
 	}
 
