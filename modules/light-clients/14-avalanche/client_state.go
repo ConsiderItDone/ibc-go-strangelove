@@ -1,8 +1,6 @@
 package avalanche
 
 import (
-	"bytes"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -10,16 +8,10 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/subnet-evm/ethdb"
-	"github.com/ava-labs/subnet-evm/ethdb/memorydb"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	ibcerrors "github.com/cosmos/ibc-go/v7/internal/errors"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
-	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
@@ -193,49 +185,6 @@ func verifyDelayPeriodPassed(ctx sdk.Context, store sdk.KVStore, proofHeight exp
 	return nil
 }
 
-func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, _ exported.ClientMessage) {
-	cs.FrozenHeight = FrozenHeight
-
-	clientStore.Set(host.ClientStateKey(), clienttypes.MustMarshalClientState(cdc, cs))
-}
-
-func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) []exported.Height {
-	header, ok := clientMsg.(*Header)
-	if !ok {
-		panic(fmt.Errorf("expected type %T, got %T", &Header{}, clientMsg))
-	}
-
-	cs.pruneOldestConsensusState(ctx, cdc, clientStore)
-
-	// check for duplicate update
-	if consensusState, _ := GetConsensusState(clientStore, cdc, header.SubnetHeader.Height); consensusState != nil {
-		// perform no-op
-		return []exported.Height{header.SubnetHeader.Height}
-	}
-
-	height := header.SubnetHeader.Height
-	if height.GT(cs.LatestHeight) {
-		cs.LatestHeight = *height
-	}
-
-	consensusState := &ConsensusState{
-		Timestamp:          header.SubnetHeader.Timestamp,
-		StorageRoot:        header.StorageRoot,
-		SignedStorageRoot:  header.SignedStorageRoot,
-		ValidatorSet:       header.ValidatorSet,
-		SignedValidatorSet: header.SignedValidatorSet,
-		Vdrs:               header.Vdrs,
-		SignersInput:       header.SignersInput,
-	}
-
-	// set client state, consensus state and asssociated metadata
-	setClientState(clientStore, cdc, cs)
-	SetConsensusState(clientStore, cdc, consensusState, header.SubnetHeader.Height)
-	setConsensusMetadata(ctx, clientStore, header.SubnetHeader.Height)
-
-	return []exported.Height{height}
-}
-
 // pruneOldestConsensusState will retrieve the earliest consensus state for this clientID and check if it is expired. If it is,
 // that consensus state will be pruned from store along with all associated metadata. This will prevent the client store from
 // becoming bloated with expired consensus states that can no longer be used for updates and packet verification.
@@ -382,36 +331,11 @@ func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.Bi
 	if err != nil {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidClient, "could not marshal client state: %v", err)
 	}
-
-	var proofClientMerkle ethdb.Database
-	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
-	// function as it will assert that all the leaves belonging to the specified root are present.
-	if len(cs.Proof) > 0 {
-		proofClientMerkle = memorydb.New()
-		defer proofClientMerkle.Close()
-		for _, proofVal := range cs.Proof {
-			proofKey := crypto.Keccak256(proofVal)
-			if err := proofClientMerkle.Put(proofKey, proofVal); err != nil {
-				return err
-			}
-		}
-	} else {
-		return fmt.Errorf("client path is invalid")
-	}
-
 	keyClientMerkle := MerkleKey{Key: cs.UpgradePath}
 
-	verifyValueClientMerkle, err := trie.VerifyProof(
-		common.BytesToHash(consState.StorageRoot),
-		[]byte(keyClientMerkle.Key),
-		proofClientMerkle,
-	)
+	err = VerifyMembership(cs.Proof, consState.StorageRoot, bz, &keyClientMerkle)
 	if err != nil {
 		return err
-	}
-
-	if !bytes.Equal(verifyValueClientMerkle, bz) {
-		return errorsmod.Wrapf(err, "client state proof failed. Path: %s", keyClientMerkle)
 	}
 
 	// Verify consensus state proof
@@ -419,36 +343,11 @@ func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.Bi
 	if err != nil {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidConsensus, "could not marshal consensus state: %v", err)
 	}
-
-	var proofConsStateMerkle ethdb.Database
-	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
-	// function as it will assert that all the leaves belonging to the specified root are present.
-	if len(cs.Proof) > 0 {
-		proofConsStateMerkle = memorydb.New()
-		defer proofConsStateMerkle.Close()
-		for _, proofVal := range cs.Proof {
-			proofKey := crypto.Keccak256(proofVal)
-			if err := proofConsStateMerkle.Put(proofKey, proofVal); err != nil {
-				return err
-			}
-		}
-	} else {
-		return fmt.Errorf("client path is invalid")
-	}
-
 	keyConsStateMerkle := MerkleKey{Key: cs.UpgradePath}
 
-	verifyValueConsStateMerkle, err := trie.VerifyProof(
-		common.BytesToHash(consState.StorageRoot),
-		[]byte(keyConsStateMerkle.Key),
-		proofConsStateMerkle,
-	)
+	err = VerifyMembership(cs.Proof, consState.StorageRoot, bz, &keyConsStateMerkle)
 	if err != nil {
 		return err
-	}
-
-	if !bytes.Equal(verifyValueConsStateMerkle, bz) {
-		return errorsmod.Wrapf(err, "client state proof failed. Path: %s", keyConsStateMerkle)
 	}
 
 	// Construct new client state and consensus state
@@ -535,7 +434,8 @@ func (cs ClientState) VerifyMembership(
 		consensusState.ValidatorSet,
 	)
 
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	// check ValidatorSet by SignedValidatorSet signature, and check signers and vdrs ratio by cs.TrustLevel ratio
+	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
 	}
@@ -546,42 +446,16 @@ func (cs ClientState) VerifyMembership(
 		consensusState.StorageRoot,
 	)
 
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	// check StorageRoot by SignedStorageRoot signature, and check signers and vdrs ratio by cs.TrustLevel ratio
+	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
 	}
 
-	var proofEx ethdb.Database
-	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
-	// function as it will assert that all the leaves belonging to the specified root are present.
-	if len(cs.Proof) > 0 {
-		proofEx = memorydb.New()
-		defer proofEx.Close()
-		for _, proofVal := range cs.Proof {
-			proofKey := crypto.Keccak256(proofVal)
-			if err := proofEx.Put(proofKey, proofVal); err != nil {
-				return err
-			}
-		}
-	} else {
-		return fmt.Errorf("client path is invalid")
-	}
-
 	key := path.(*MerkleKey)
 
-	verifyValue, err := trie.VerifyProof(
-		common.BytesToHash(consensusState.StorageRoot),
-		[]byte(key.Key),
-		proofEx,
-	)
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(verifyValue, value) {
-		return fmt.Errorf("key: %064x, value is not equal expected: %064x, but have: %064x", key.Key, value, verifyValue)
-	}
-	return nil
+	// check merkleProof verifycation, by go-ethereum lib
+	return VerifyMembership(cs.Proof, consensusState.StorageRoot, value, key)
 }
 
 // VerifyNonMembership is a generic proof verification method which verifies the absence of a given CommitmentPath at a specified height.
@@ -613,12 +487,11 @@ func (cs ClientState) VerifyNonMembership(
 		return errorsmod.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
 	}
 
-
 	vdrs, totalWeigth, err := ValidateValidatorSet(ctx, consensusState.Vdrs)
 	if err != nil {
 		return err
 	}
-	
+
 	chainID, _ := ids.ToID([]byte(cs.ChainId))
 	unsignedMsg, _ := warp.NewUnsignedMessage(
 		chainID,
@@ -626,7 +499,7 @@ func (cs ClientState) VerifyNonMembership(
 		consensusState.ValidatorSet,
 	)
 
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
 	}
@@ -637,40 +510,12 @@ func (cs ClientState) VerifyNonMembership(
 		consensusState.StorageRoot,
 	)
 
-	err = Verify(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
+	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
 	}
 
-	var proofEx ethdb.Database
-	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
-	// function as it will assert that all the leaves belonging to the specified root are present.
-	if len(cs.Proof) > 0 {
-		proofEx = memorydb.New()
-		defer proofEx.Close()
-		for _, proofVal := range cs.Proof {
-			proofKey := crypto.Keccak256(proofVal)
-			if err := proofEx.Put(proofKey, proofVal); err != nil {
-				return err
-			}
-		}
-	} else {
-		return fmt.Errorf("client path is invalid")
-	}
-
 	key := path.(*MerkleKey)
 
-	verifyValue, err := trie.VerifyProof(
-		common.BytesToHash(consensusState.StorageRoot),
-		[]byte(key.Key),
-		proofEx,
-	)
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(verifyValue, nil) {
-		return fmt.Errorf("value is not equal")
-	}
-	return nil
+	return VerifyNonMembership(cs.Proof, consensusState.StorageRoot, key)
 }

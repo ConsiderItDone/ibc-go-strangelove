@@ -182,7 +182,7 @@ func (suite *AvalancheTestSuite) TestSignatureVerification() {
 				panic(err)
 			}
 
-			err = ibcava.Verify(signersInput, signature, unsignedBytes, vdrsIn, totalWeight,
+			err = ibcava.VerifyBls(signersInput, signature, unsignedBytes, vdrsIn, totalWeight,
 				tt.quorumNum,
 				tt.quorumDen)
 

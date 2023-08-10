@@ -1,6 +1,7 @@
 package avalanche
 
 import (
+	fmt "fmt"
 	"reflect"
 
 	errorsmod "cosmossdk.io/errors"
@@ -8,6 +9,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 )
 
@@ -18,11 +20,7 @@ func (cs *ClientState) VerifyClientMessage(
 ) error {
 	switch msg := clientMsg.(type) {
 	case *Header:
-		err := cs.verifyHeader(ctx, clientStore, cdc, msg)
-		if err != nil {
-			return err
-		}
-		return nil
+		return cs.verifyHeader(ctx, clientStore, cdc, msg)
 	case *Misbehaviour:
 		return cs.verifyMisbehaviour(ctx, clientStore, cdc, msg)
 	default:
@@ -109,4 +107,47 @@ func (cs *ClientState) verifyHeader(
 		}
 	}
 	return nil
+}
+
+func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, _ exported.ClientMessage) {
+	cs.FrozenHeight = FrozenHeight
+
+	clientStore.Set(host.ClientStateKey(), clienttypes.MustMarshalClientState(cdc, cs))
+}
+
+func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore sdk.KVStore, clientMsg exported.ClientMessage) []exported.Height {
+	header, ok := clientMsg.(*Header)
+	if !ok {
+		panic(fmt.Errorf("expected type %T, got %T", &Header{}, clientMsg))
+	}
+
+	cs.pruneOldestConsensusState(ctx, cdc, clientStore)
+
+	// check for duplicate update
+	if consensusState, _ := GetConsensusState(clientStore, cdc, header.SubnetHeader.Height); consensusState != nil {
+		// perform no-op
+		return []exported.Height{header.SubnetHeader.Height}
+	}
+
+	height := header.SubnetHeader.Height
+	if height.GT(cs.LatestHeight) {
+		cs.LatestHeight = *height
+	}
+
+	consensusState := &ConsensusState{
+		Timestamp:          header.SubnetHeader.Timestamp,
+		StorageRoot:        header.StorageRoot,
+		SignedStorageRoot:  header.SignedStorageRoot,
+		ValidatorSet:       header.ValidatorSet,
+		SignedValidatorSet: header.SignedValidatorSet,
+		Vdrs:               header.Vdrs,
+		SignersInput:       header.SignersInput,
+	}
+
+	// set client state, consensus state and asssociated metadata
+	setClientState(clientStore, cdc, cs)
+	SetConsensusState(clientStore, cdc, consensusState, header.SubnetHeader.Height)
+	setConsensusMetadata(ctx, clientStore, header.SubnetHeader.Height)
+
+	return []exported.Height{height}
 }

@@ -1,6 +1,7 @@
 package avalanche
 
 import (
+	"bytes"
 	fmt "fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -9,11 +10,16 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/subnet-evm/ethdb"
 	"github.com/ava-labs/subnet-evm/ethdb/memorydb"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
-func Verify(
+// VerifyBls verifies bls signature and check signers weight by quorumNum/quorumDen ratio
+func VerifyBls(
 	signersInput []byte, // header
 	signature [bls.SignatureLen]byte, //  (1 - signed_storage_root; 2 - signed_validator_set)
 	data []byte, // payload (1 - storage root; 2 - validater set)
@@ -51,22 +57,12 @@ func Verify(
 	if err != nil {
 		return err
 	}
-
-	// fmt.Println("")
-	// fmt.Printf("signature: %064x \n", signature)
-	// fmt.Printf("data: %064x \n", data)
+	
 	// Parse the aggregate signature
 	aggSig, err := bls.SignatureFromBytes(signature[:])
 	if err != nil {
 		return fmt.Errorf("failed to parse signature: %v", err)
 	}
-	// for i, vdr := range signers {
-		// fmt.Printf("vdr number: %d \n", i)
-		// fmt.Printf("vdr.NodeIDs: %064x \n", vdr.NodeIDs)
-		// fmt.Printf("vdr.PublicKeyBytes: %064x \n", vdr.PublicKeyBytes)
-		// fmt.Printf("vdr.Weight: %d \n", vdr.Weight)
-	// }
-	// fmt.Println("")
 	// Create the aggregate public key
 	aggPubKey, err := warp.AggregatePublicKeys(signers)
 	if err != nil {
@@ -160,4 +156,70 @@ func IterateVals(db *memorydb.Database) ([][]byte, error) {
 	}
 
 	return vals, it.Error()
+}
+
+func VerifyMembership(proof [][]byte, storageRoot []byte, value []byte, key *MerkleKey) error {
+	var proofEx ethdb.Database
+	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
+	// function as it will assert that all the leaves belonging to the specified root are present.
+	if len(proof) > 0 {
+		proofEx = memorydb.New()
+		defer proofEx.Close()
+		for _, proofVal := range proof {
+			proofKey := crypto.Keccak256(proofVal)
+			if err := proofEx.Put(proofKey, proofVal); err != nil {
+				return err
+			}
+		}
+	} else {
+		return fmt.Errorf("client path is invalid")
+	}
+
+
+	verifyValue, err := trie.VerifyProof(
+		common.BytesToHash(storageRoot),
+		[]byte(key.Key),
+		proofEx,
+	)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(verifyValue, value) {
+		return fmt.Errorf("key: %064x, value is not equal expected: %064x, but have: %064x", key.Key, value, verifyValue)
+	}
+	return nil
+}
+
+
+func VerifyNonMembership(proof [][]byte, storageRoot []byte, key *MerkleKey) error {
+	var proofEx ethdb.Database
+	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
+	// function as it will assert that all the leaves belonging to the specified root are present.
+	if len(proof) > 0 {
+		proofEx = memorydb.New()
+		defer proofEx.Close()
+		for _, proofVal := range proof {
+			proofKey := crypto.Keccak256(proofVal)
+			if err := proofEx.Put(proofKey, proofVal); err != nil {
+				return err
+			}
+		}
+	} else {
+		return fmt.Errorf("client path is invalid")
+	}
+
+	verifyValue, err := trie.VerifyProof(
+		common.BytesToHash(storageRoot),
+		[]byte(key.Key),
+		proofEx,
+	)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(verifyValue, nil) {
+		return fmt.Errorf("value is not equal")
+	}
+	return nil
 }
