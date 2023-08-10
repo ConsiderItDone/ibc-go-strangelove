@@ -499,6 +499,7 @@ func (cs ClientState) VerifyNonMembership(
 		consensusState.ValidatorSet,
 	)
 
+	// check ValidatorSet by SignedValidatorSet signature, and check signers and vdrs ratio by cs.TrustLevel ratio
 	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedValidatorSet), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify ValidatorSet signature")
@@ -510,6 +511,7 @@ func (cs ClientState) VerifyNonMembership(
 		consensusState.StorageRoot,
 	)
 
+	// check StorageRoot by SignedStorageRoot signature, and check signers and vdrs ratio by cs.TrustLevel ratio
 	err = VerifyBls(consensusState.SignersInput, SetSignature(consensusState.SignedStorageRoot), unsignedMsg.Bytes(), vdrs, totalWeigth, cs.TrustLevel.Numerator, cs.TrustLevel.Denominator)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify StorageRoot signature")
