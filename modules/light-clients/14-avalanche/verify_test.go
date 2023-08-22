@@ -2,7 +2,6 @@ package avalanche_test
 
 import (
 	"context"
-	"testing"
 
 	"github.com/golang/mock/gomock"
 
@@ -51,23 +50,20 @@ func newTestValidator() *testValidator {
 		sk:     sk,
 		vdr: &warp.Validator{
 			PublicKey:      pk,
-			PublicKeyBytes: pk.Serialize(),
+			PublicKeyBytes: bls.PublicKeyToBytes(pk),
 			Weight:         3,
 			NodeIDs:        []ids.NodeID{nodeID},
 		},
 	}
 }
 
-func init() {
+func (suite *AvalancheTestSuite) TestSignatureVerification() {
 	testVdrs = []*testValidator{
 		newTestValidator(),
 		newTestValidator(),
 		newTestValidator(),
 	}
 	utils.Sort(testVdrs)
-}
-
-func TestSignatureVerification(t *testing.T) {
 	vdrs := map[ids.NodeID]*validators.GetValidatorOutput{
 		testVdrs[0].nodeID: {
 			NodeID:    testVdrs[0].nodeID,
@@ -116,7 +112,7 @@ func TestSignatureVerification(t *testing.T) {
 				signers := set.NewBits()
 				signers.Add(1)
 				signers.Add(2)
-				signers_input := signers.Bytes()
+				signersInput := signers.Bytes()
 
 				unsignedBytes := unsignedMsg.Bytes()
 				vdr1Sig := bls.Sign(testVdrs[1].sk, unsignedBytes)
@@ -127,7 +123,7 @@ func TestSignatureVerification(t *testing.T) {
 				copy(aggSigBytes[:], bls.SignatureToBytes(aggSig))
 
 				require.NoError(err)
-				return signers_input, aggSigBytes, unsignedMsg
+				return signersInput, aggSigBytes, unsignedMsg
 			},
 			valid: true,
 		},
@@ -171,9 +167,9 @@ func TestSignatureVerification(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
-			ctrl := gomock.NewController(t)
+		suite.Run(tt.name, func() {
+			require := require.New(suite.T())
+			ctrl := gomock.NewController(suite.T())
 			defer ctrl.Finish()
 
 			signersInput, signature, unsignedMsg := tt.msgF(require)
@@ -186,8 +182,7 @@ func TestSignatureVerification(t *testing.T) {
 				panic(err)
 			}
 
-			err = ibcava.Verify(signersInput, signature, unsignedBytes, vdrsIn, totalWeight,
-				pChainHeight,
+			err = ibcava.VerifyBls(signersInput, signature, unsignedBytes, vdrsIn, totalWeight,
 				tt.quorumNum,
 				tt.quorumDen)
 
