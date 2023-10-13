@@ -13,31 +13,31 @@ import (
 
 var _ module.AppModuleBasic = AppModuleBasic{}
 
-// AppModuleBasic defines the basic application module used by the solo machine light client.
+// AppModuleBasic defines the basic application module used by the avalanche light client.
 // Only the RegisterInterfaces function needs to be implemented. All other function perform
 // a no-op.
 type AppModuleBasic struct{}
 
-// Name returns the solo machine module name.
+// Name returns the avalanche module name.
 func (AppModuleBasic) Name() string {
 	return ModuleName
 }
 
-// RegisterLegacyAminoCodec performs a no-op. The solo machine client does not support amino.
+// RegisterLegacyAminoCodec performs a no-op. The avalanche client does not support amino.
 func (AppModuleBasic) RegisterLegacyAminoCodec(*codec.LegacyAmino) {}
 
 // RegisterInterfaces registers module concrete types into protobuf Any. This allows core IBC
-// to unmarshal solo machine types.
+// to unmarshal avalanche light client types.
 func (AppModuleBasic) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	RegisterInterfaces(registry)
 }
 
-// DefaultGenesis performs a no-op. Genesis is not supported for solo machine.
+// DefaultGenesis performs a no-op. Genesis is not supported for the avalanche light client.
 func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 	return nil
 }
 
-// ValidateGenesis performs a no-op. Genesis is not supported for solo machine.
+// ValidateGenesis performs a no-op. Genesis is not supported for the avalanche light cilent.
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
 	return nil
 }
