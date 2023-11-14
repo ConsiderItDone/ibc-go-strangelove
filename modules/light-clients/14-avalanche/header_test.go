@@ -91,12 +91,12 @@ func (suite *AvalancheTestSuite) TestHeaderValidateBasic() {
 					Timestamp: suite.chainA.GetContext().BlockTime(),
 					BlockHash: []byte("PchainHeaderBlockHash"),
 				},
-				Vdrs:              []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
-				ValidatorSet:      []byte("ValidatorSet"),
-				StorageRoot:       []byte("StorageRoot"),
-				SignedStorageRoot: []byte("SignedStorageRoot"),
+				Vdrs:               []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
+				ValidatorSet:       []byte("ValidatorSet"),
+				StorageRoot:        []byte("StorageRoot"),
+				SignedStorageRoot:  []byte("SignedStorageRoot"),
 				SignedValidatorSet: []byte("SignedValidatorSet"),
-				SignersInput: []byte("SignersInput"),
+				SignersInput:       []byte("SignersInput"),
 			}
 
 			tc.malleate()

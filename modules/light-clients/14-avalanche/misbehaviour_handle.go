@@ -141,7 +141,6 @@ func (cs *ClientState) verifyMisbehaviour(ctx sdk.Context, clientStore sdk.KVSto
 func checkMisbehaviourHeader(ctx sdk.Context,
 	clientState *ClientState, consState *ConsensusState, header *Header,
 ) error {
-
 	headerUniqVdrs, headerTotalWeight, err := ValidateValidatorSet(ctx, header.Vdrs)
 	if err != nil {
 		return errorsmod.Wrap(err, "failed to verify header")

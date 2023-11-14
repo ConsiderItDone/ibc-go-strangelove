@@ -36,14 +36,14 @@ func (tmcfg *TendermintConfig) GetClientType() string {
 }
 
 type AvalancheConfig struct {
-	TrustLevel      ibcava.Fraction
-	TrustingPeriod  time.Duration
+	TrustLevel     ibcava.Fraction
+	TrustingPeriod time.Duration
 }
 
 func NewAvalancheConfig() *AvalancheConfig {
 	return &AvalancheConfig{
-		TrustLevel:      ibcava.DefaultTrustLevel,
-		TrustingPeriod:  TrustingPeriod,
+		TrustLevel:     ibcava.DefaultTrustLevel,
+		TrustingPeriod: TrustingPeriod,
 	}
 }
 
