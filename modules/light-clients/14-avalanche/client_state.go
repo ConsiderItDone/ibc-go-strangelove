@@ -2,6 +2,7 @@ package avalanche
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	ibcerrors "github.com/cosmos/ibc-go/v7/internal/errors"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 
@@ -427,9 +429,12 @@ func (cs ClientState) VerifyMembership(
 		return err
 	}
 
-	chainID, _ := ids.ToID([]byte(cs.ChainId))
+	chainID, err := strconv.Atoi(cs.ChainId)
+	if err != nil {
+		return err
+	}
 	unsignedMsg, _ := warp.NewUnsignedMessage(
-		chainID,
+		uint32(chainID),
 		ids.Empty,
 		consensusState.ValidatorSet,
 	)
@@ -441,7 +446,7 @@ func (cs ClientState) VerifyMembership(
 	}
 
 	unsignedMsg, _ = warp.NewUnsignedMessage(
-		chainID,
+		uint32(chainID),
 		ids.Empty,
 		consensusState.StorageRoot,
 	)
@@ -492,9 +497,12 @@ func (cs ClientState) VerifyNonMembership(
 		return err
 	}
 
-	chainID, _ := ids.ToID([]byte(cs.ChainId))
+	chainID, err := strconv.Atoi(cs.ChainId)
+	if err != nil {
+		return err
+	}
 	unsignedMsg, _ := warp.NewUnsignedMessage(
-		chainID,
+		uint32(chainID),
 		ids.Empty,
 		consensusState.ValidatorSet,
 	)
@@ -506,7 +514,7 @@ func (cs ClientState) VerifyNonMembership(
 	}
 
 	unsignedMsg, _ = warp.NewUnsignedMessage(
-		chainID,
+		uint32(chainID),
 		ids.Empty,
 		consensusState.StorageRoot,
 	)

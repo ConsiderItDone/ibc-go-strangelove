@@ -251,6 +251,8 @@ github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj
 github.com/aryann/difflib v0.0.0-20170710044230-e206f873d14a/go.mod h1:DAHtR1m6lCRdSC2Tm3DSWRPvIPr6xNKyeHdqDQSQT+A=
 github.com/ava-labs/avalanchego v1.10.3 h1:ZWXAyOaXFDKrH+E05QNT0du+9JsyBjDDrLXjkIBK1sU=
 github.com/ava-labs/avalanchego v1.10.3/go.mod h1:yVERGXCHtFbdYC6KM5krZYXzJ8LhFR98bx5hIUrEGRs=
+github.com/ava-labs/avalanchego v1.10.5 h1:opYyroLzhJPTJw9LlSRks8ItcezerwuGAT0MkVSotBs=
+github.com/ava-labs/avalanchego v1.10.5/go.mod h1:rXAX4UaE9ORIEJcMyzN6ibv4rnLwv0zUIPLmzA0MCno=
 github.com/ava-labs/subnet-evm v0.5.2 h1:PoOYePz9ckuCuikFNvhuj+KMlOfkNDlIWDz6Rv4yTI4=
 github.com/ava-labs/subnet-evm v0.5.2/go.mod h1:lP17SVrc/tayxFT+ZOqMPvfvB/OvdTeeOl69l7EeWq4=
 github.com/aws/aws-lambda-go v1.13.3/go.mod h1:4UKl9IzQMoD+QF79YdCuzCwp8VbmG4VAQwij/eHl5CU=

@@ -3,6 +3,7 @@ package avalanche_test
 import (
 	"bytes"
 	crand "crypto/rand"
+	"strconv"
 	time "time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,13 +18,14 @@ import (
 	cosmostypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/std"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v7/modules/core/exported"
 	ibcava "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 	ibctesting "github.com/cosmos/ibc-go/v7/testing"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -321,7 +323,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 				},
 			}
 
-			chainID, _ := ids.ToID([]byte(testingpath.EndpointA.Chain.ChainID))
+			chainID, _ := strconv.Atoi(testingpath.EndpointA.Chain.ChainID)
 
 			// reset time and block delays to 0, malleate may change to a specific non-zero value.
 			delayTimePeriod = 0
@@ -343,7 +345,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			signersInput := signers.Bytes()
 
 			unsignedMsg, _ := warp.NewUnsignedMessage(
-				chainID,
+				uint32(chainID),
 				ids.Empty,
 				storageRoot,
 			)
@@ -363,7 +365,7 @@ func (suite *AvalancheTestSuite) TestVerifyMembership() {
 			}
 
 			unsignedMsgValidator, _ := warp.NewUnsignedMessage(
-				chainID,
+				uint32(chainID),
 				ids.Empty,
 				validatorSet,
 			)
@@ -588,10 +590,10 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			signers.Add(2)
 			signersInput := signers.Bytes()
 
-			chainID, _ := ids.ToID([]byte(testingpath.EndpointA.Chain.ChainID))
+			chainID, _ := strconv.Atoi(testingpath.EndpointA.Chain.ChainID)
 
 			unsignedMsg, _ := warp.NewUnsignedMessage(
-				chainID,
+				uint32(chainID),
 				ids.Empty,
 				storageRoot,
 			)
@@ -611,7 +613,7 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 			}
 
 			unsignedMsgValidator, _ := warp.NewUnsignedMessage(
-				chainID,
+				uint32(chainID),
 				ids.Empty,
 				validatorSet,
 			)
@@ -1089,7 +1091,6 @@ func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
 		},
 	}
 
-
 	testCases := []struct {
 		name     string
 		malleate func()
@@ -1109,7 +1110,7 @@ func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
 						Timestamp:  suite.chainA.GetContext().BlockTime(),
 						BlockHash:  []byte("SubnetHeaderBlockHash"),
 						PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
-					},				
+					},
 					PrevSubnetHeader: &ibcava.SubnetHeader{
 						Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
 						Timestamp:  suite.chainA.GetContext().BlockTime(),
@@ -1146,7 +1147,7 @@ func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
 					Timestamp:  suite.chainA.GetContext().BlockTime(),
 					BlockHash:  []byte("SubnetHeaderBlockHash"),
 					PchainVdrs: []*ibcava.Validator{vdrs[0], vdrs[1], vdrs[2]},
-				},				
+				},
 				PrevSubnetHeader: &ibcava.SubnetHeader{
 					Height:     &clienttypes.Height{RevisionNumber: 2, RevisionHeight: 1},
 					Timestamp:  suite.chainA.GetContext().BlockTime(),

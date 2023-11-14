@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
 	ibcava "github.com/cosmos/ibc-go/v7/modules/light-clients/14-avalanche"
 )
 
@@ -21,8 +22,8 @@ const pChainHeight uint64 = 1337
 var (
 	_ utils.Sortable[*testValidator] = (*testValidator)(nil)
 
-	sourceChainID = ids.GenerateTestID()
-	subnetID      = ids.GenerateTestID()
+	sourceChainID uint32 = 1
+	subnetID             = ids.GenerateTestID()
 
 	testVdrs []*testValidator
 )
