@@ -57,7 +57,7 @@ func VerifyBls(
 	if err != nil {
 		return err
 	}
-	
+
 	// Parse the aggregate signature
 	aggSig, err := bls.SignatureFromBytes(signature[:])
 	if err != nil {
@@ -126,9 +126,7 @@ func SetSignature(b []byte) (signature [bls.SignatureLen]byte) {
 }
 
 func SetNodeIDs(data [][]byte) []ids.NodeID {
-	var (
-		nodeIDs = make([]ids.NodeID, len(data))
-	)
+	nodeIDs := make([]ids.NodeID, len(data))
 	for i, b := range data {
 		if len(b) > len(nodeIDs[i]) {
 			b = b[len(b)-len(nodeIDs[i]):]
@@ -175,7 +173,6 @@ func VerifyMembership(proof [][]byte, storageRoot []byte, value []byte, key *Mer
 		return fmt.Errorf("client path is invalid")
 	}
 
-
 	verifyValue, err := trie.VerifyProof(
 		common.BytesToHash(storageRoot),
 		[]byte(key.Key),
@@ -190,7 +187,6 @@ func VerifyMembership(proof [][]byte, storageRoot []byte, value []byte, key *Mer
 	}
 	return nil
 }
-
 
 func VerifyNonMembership(proof [][]byte, storageRoot []byte, key *MerkleKey) error {
 	var proofEx ethdb.Database

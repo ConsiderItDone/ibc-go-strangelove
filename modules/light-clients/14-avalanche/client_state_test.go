@@ -164,7 +164,6 @@ func (suite *AvalancheTestSuite) TestValidate() {
 }
 
 func (suite *AvalancheTestSuite) TestInitialize() {
-
 	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
 	marshaler := codec.NewProtoCodec(interfaceRegistry)
 
@@ -214,7 +213,6 @@ func (suite *AvalancheTestSuite) TestInitialize() {
 }
 
 func (suite *AvalancheTestSuite) TestVerifyMembership() {
-
 	var (
 		testingpath      *ibctesting.Path
 		delayTimePeriod  uint64
@@ -665,7 +663,6 @@ func (suite *AvalancheTestSuite) TestVerifyNonMembership() {
 }
 
 func (suite *AvalancheTestSuite) TestGetTimestampAtHeight() {
-
 	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
 	marshaler := codec.NewProtoCodec(interfaceRegistry)
 
@@ -896,7 +893,6 @@ func (suite *AvalancheTestSuite) TestUpdateStateOnMisbehaviour() {
 }
 
 func (suite *AvalancheTestSuite) TestUpdateState() {
-
 	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
 	marshaler := codec.NewProtoCodec(interfaceRegistry)
 
@@ -977,16 +973,13 @@ func (suite *AvalancheTestSuite) TestUpdateState() {
 }
 
 func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
-
 	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
 	marshaler := codec.NewProtoCodec(interfaceRegistry)
 
 	std.RegisterInterfaces(interfaceRegistry)
 	ibcava.AppModuleBasic{}.RegisterInterfaces(interfaceRegistry)
 
-	var (
-		substituteClientState exported.ClientState
-	)
+	var substituteClientState exported.ClientState
 	testCases := []struct {
 		name     string
 		malleate func()
@@ -1051,7 +1044,6 @@ func (suite *AvalancheTestSuite) TestCheckSubstituteUpdateStateBasic() {
 }
 
 func (suite *AvalancheTestSuite) TestCheckForMisbehaviour() {
-
 	interfaceRegistry := cosmostypes.NewInterfaceRegistry()
 	marshaler := codec.NewProtoCodec(interfaceRegistry)
 

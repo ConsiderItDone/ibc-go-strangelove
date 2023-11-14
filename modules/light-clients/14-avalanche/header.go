@@ -27,7 +27,6 @@ func (h Header) ClientType() string {
 }
 
 func (h Header) ValidateBasic() error {
-
 	if len(h.SignersInput) == 0 {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "Avalanche header cannot empty SignersInput")
 	}
@@ -51,23 +50,17 @@ func (h Header) ValidateBasic() error {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "Avalanche header cannot empty Vdrs")
 	}
 
-
 	if h.SubnetHeader == nil {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "SubnetHeader is nil")
 	}
-
 
 	if h.PrevSubnetHeader == nil {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "PrevSubnetHeader is nil")
 	}
 
-
 	if h.PchainHeader == nil {
 		return errorsmod.Wrap(clienttypes.ErrInvalidHeader, "PchainHeader is nil")
 	}
-
-
-
 
 	if !h.PrevSubnetHeader.Height.LT(*h.SubnetHeader.Height) {
 		return errorsmod.Wrapf(clienttypes.ErrInvalidMisbehaviour, "PrevSubnetHeader height is less or equal than SubnetHeader height (%s <= %s)", h.SubnetHeader.Height, h.SubnetHeader.Height)
